@@ -3,6 +3,10 @@
     "name": "Lumira Reader",
     "slug": "lumira-reader",
     "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "lumira",
