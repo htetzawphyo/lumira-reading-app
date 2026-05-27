@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Lumira Reader",
+    "slug": "lumira-reader",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "scheme": "lumira",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "bundleIdentifier": "com.snapez.lumirareader",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.snapez.lumirareader",
+      "adaptiveIcon": {
+        "backgroundColor": "#0D0B13",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-image",
+      "expo-sqlite",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b60e531a-3308-4f8d-ba73-e0e1900177e1"
+      }
+    },
+    "owner": "snape_z",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b60e531a-3308-4f8d-ba73-e0e1900177e1"
+    }
+  }
+}
