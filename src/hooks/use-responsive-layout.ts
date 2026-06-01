@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useWindowDimensions } from "react-native";
 
+import { breakpoints } from "@/design/tokens";
+
 export function useResponsiveLayout() {
   const { width, height } = useWindowDimensions();
 
@@ -10,9 +12,9 @@ export function useResponsiveLayout() {
     return {
       width,
       height,
-      isPhone: width < 768,
-      isTablet: width >= 768,
-      isLargeTablet: width >= 1024,
+      isPhone: width < breakpoints.tablet,
+      isTablet: width >= breakpoints.tablet,
+      isLargeTablet: width >= breakpoints.tabletLandscape,
       orientation,
     } as const;
   }, [height, width]);

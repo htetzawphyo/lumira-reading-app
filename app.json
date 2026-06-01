@@ -10,29 +10,29 @@
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "lumira",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/lumira.png",
     "ios": {
-      "bundleIdentifier": "com.snapez.lumirareader",
+      "bundleIdentifier": "com.reader.lumira",
       "supportsTablet": true
     },
     "android": {
-      "package": "com.snapez.lumirareader",
+      "package": "com.reader.lumira",
       "adaptiveIcon": {
         "backgroundColor": "#0D0B13",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/lumira.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/lumira.png"
     },
     "plugins": [
       "expo-router",
       "expo-image",
       "expo-sqlite",
-      "expo-font"
+      "expo-font",
+      "expo-asset",
+      "expo-notifications"
     ],
     "extra": {
       "router": {},

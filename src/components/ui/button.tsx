@@ -5,7 +5,8 @@ import type { PressableProps, StyleProp, ViewStyle } from "react-native";
 import { Pressable, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
-import { colors, radii, spacing } from "@/design/tokens";
+import { useAppTheme } from "@/design/app-theme-provider";
+import { radii, spacing } from "@/design/tokens";
 
 type ButtonVariant = "primary" | "secondary" | "ghost";
 
@@ -19,24 +20,6 @@ type ButtonProps = PropsWithChildren<
   }
 >;
 
-const variants = {
-  primary: {
-    backgroundColor: colors.brand.violet,
-    borderColor: "rgba(255, 255, 255, 0.14)",
-    color: colors.text.primary,
-  },
-  secondary: {
-    backgroundColor: colors.text.primary,
-    borderColor: colors.text.primary,
-    color: colors.text.inverse,
-  },
-  ghost: {
-    backgroundColor: "transparent",
-    borderColor: "transparent",
-    color: colors.text.secondary,
-  },
-} as const;
-
 export function Button({
   title,
   children,
@@ -47,6 +30,24 @@ export function Button({
   style,
   ...props
 }: ButtonProps) {
+  const { colors: themeColors } = useAppTheme();
+  const variants = {
+    primary: {
+      backgroundColor: themeColors.brand.violet,
+      borderColor: themeColors.border.default,
+      color: "#FFFFFF",
+    },
+    secondary: {
+      backgroundColor: themeColors.text.primary,
+      borderColor: themeColors.text.primary,
+      color: themeColors.text.inverse,
+    },
+    ghost: {
+      backgroundColor: "transparent",
+      borderColor: "transparent",
+      color: themeColors.text.secondary,
+    },
+  } as const;
   const theme = variants[variant];
 
   return (
@@ -54,7 +55,10 @@ export function Button({
       {...props}
       accessibilityRole="button"
       onPress={(event) => {
-        Haptics.selectionAsync().catch(() => undefined);
+        if (process.env.EXPO_OS === "ios") {
+          Haptics.selectionAsync().catch(() => undefined);
+        }
+
         onPress?.(event);
       }}
       style={({ pressed }) => [

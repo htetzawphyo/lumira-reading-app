@@ -1,16 +1,16 @@
 export const colors = {
   background: {
-    base: "#050505",
-    canvas: "#080808",
-    elevated: "#111111",
-    panel: "#171717",
-    panelStrong: "#252525",
+    base: "#0F0B17",
+    canvas: "#151020",
+    elevated: "#1A1427",
+    panel: "#221A33",
+    panelStrong: "#2A2140",
   },
   text: {
-    primary: "#F7F7F7",
-    secondary: "#B5B5B5",
-    tertiary: "#9A9A9A",
-    muted: "#686868",
+    primary: "#F7F3FF",
+    secondary: "#C9C1D8",
+    tertiary: "#9D92B0",
+    muted: "#70657F",
     inverse: "#111111",
   },
   border: {
@@ -19,6 +19,7 @@ export const colors = {
     strong: "rgba(255, 255, 255, 0.22)",
   },
   brand: {
+    primary: "#8B5CF6",
     violet: "#8B5CF6",
     purple: "#A855F7",
     cyan: "#38BDF8",
@@ -51,6 +52,19 @@ export const spacing = {
   14: 56,
   16: 64,
   18: 72,
+} as const;
+
+export const touch = {
+  min: 44,
+  comfortable: 48,
+  large: 56,
+} as const;
+
+export const controls = {
+  inputCompactHeight: 50,
+  inputHeight: 62,
+  rowCompactHeight: 84,
+  rowHeight: 96,
 } as const;
 
 export const radii = {
@@ -94,10 +108,21 @@ export const typography = {
 
 export const breakpoints = {
   phone: 0,
+  smallPhone: 360,
   largePhone: 430,
   tablet: 768,
   tabletLandscape: 1024,
   desktop: 1280,
+} as const;
+
+export const layout = {
+  phoneMaxWidth: 430,
+  tabletMaxWidth: 960,
+  desktopMaxWidth: 1180,
+  readerPhoneMaxWidth: 620,
+  readerTabletMaxWidth: 760,
+  settingsTabletMaxWidth: 760,
+  knowledgeMaxWidth: 900,
 } as const;
 
 export const shadows = {

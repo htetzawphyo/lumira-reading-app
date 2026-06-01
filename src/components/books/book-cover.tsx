@@ -2,7 +2,8 @@ import { Image } from "expo-image";
 import { BookOpen } from "lucide-react-native";
 import { View } from "react-native";
 
-import { colors, radii } from "@/design/tokens";
+import { useAppTheme } from "@/design/app-theme-provider";
+import { radii } from "@/design/tokens";
 
 type BookCoverProps = {
   uri?: string | null;
@@ -12,6 +13,8 @@ type BookCoverProps = {
 };
 
 export function BookCover({ uri, accent = "#FFFFFF", compact, progress }: BookCoverProps) {
+  const { colors } = useAppTheme();
+
   return (
     <View
       style={{
@@ -27,6 +30,8 @@ export function BookCover({ uri, accent = "#FFFFFF", compact, progress }: BookCo
     >
       {uri ? (
         <Image
+          cachePolicy="memory-disk"
+          recyclingKey={uri}
           source={{ uri }}
           style={{ flex: 1 }}
           contentFit="cover"
@@ -53,7 +58,7 @@ export function BookCover({ uri, accent = "#FFFFFF", compact, progress }: BookCo
           height: compact ? 4 : 5,
           overflow: "hidden",
           borderRadius: radii.pill,
-          backgroundColor: compact ? accent : "rgba(255, 255, 255, 0.28)",
+          backgroundColor: "rgba(255, 255, 255, 0.32)",
         }}
       >
         {typeof progress === "number" ? (

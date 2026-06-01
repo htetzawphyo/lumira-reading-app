@@ -3,7 +3,8 @@ import type { LucideIcon } from "lucide-react-native";
 import type { PressableProps, StyleProp, ViewStyle } from "react-native";
 import { Pressable } from "react-native";
 
-import { colors, radii } from "@/design/tokens";
+import { useAppTheme } from "@/design/app-theme-provider";
+import { radii } from "@/design/tokens";
 
 type IconButtonProps = Omit<PressableProps, "style"> & {
   icon: LucideIcon;
@@ -20,6 +21,8 @@ export function IconButton({
   style,
   ...props
 }: IconButtonProps) {
+  const { colors } = useAppTheme();
+
   return (
     <Pressable
       {...props}

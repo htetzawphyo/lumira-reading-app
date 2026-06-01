@@ -7,7 +7,9 @@ import { Platform } from "react-native";
 import { schema } from "@/db/schema";
 
 let sqlite: SQLiteDatabase | null = null;
-let drizzleDb: (ExpoSQLiteDatabase<typeof schema> & { $client: SQLiteDatabase }) | null = null;
+let drizzleDb:
+  | (ExpoSQLiteDatabase<typeof schema> & { $client: SQLiteDatabase })
+  | null = null;
 
 export function isSQLiteAvailable() {
   return Platform.OS !== "web";
@@ -15,7 +17,9 @@ export function isSQLiteAvailable() {
 
 export function getSqlite() {
   if (!isSQLiteAvailable()) {
-    throw new Error("SQLite is available in Expo Go/native builds. Web preview uses empty local data.");
+    throw new Error(
+      "SQLite is available in Expo Go/native builds. Web preview uses empty local data."
+    );
   }
 
   sqlite ??= openDatabaseSync("lumira.db");

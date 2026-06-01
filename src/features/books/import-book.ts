@@ -7,18 +7,19 @@ import { extractEpubMetadata, titleFromFileName } from "@/utils/epub-metadata";
 import { createId } from "@/utils/id";
 import { nowIso } from "@/utils/date";
 
+const METADATA_EXTRACTION_LIMIT_BYTES = 32 * 1024 * 1024;
+const EPUB_MIME_TYPES = ["application/epub+zip", "application/x-epub+zip"];
+
 function isEpubAsset(asset: DocumentPicker.DocumentPickerAsset) {
   const name = asset.name.toLowerCase();
-  return (
-    name.endsWith(".epub") ||
-    asset.mimeType === "application/epub+zip" ||
-    asset.mimeType === "application/octet-stream"
-  );
+  const mimeType = asset.mimeType?.toLowerCase();
+
+  return name.endsWith(".epub") || EPUB_MIME_TYPES.includes(mimeType ?? "");
 }
 
 export async function pickAndImportBook(): Promise<ImportBookResult | null> {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ["application/epub+zip", "application/octet-stream"],
+    type: EPUB_MIME_TYPES,
     copyToCacheDirectory: true,
     multiple: false,
   });
@@ -30,7 +31,7 @@ export async function pickAndImportBook(): Promise<ImportBookResult | null> {
   const asset = result.assets[0];
 
   if (!asset || !isEpubAsset(asset)) {
-    throw new Error("Please choose an EPUB file.");
+    throw new Error("Please choose a .epub file. Lumira only supports EPUB import for now.");
   }
 
   const existing = getBookByOriginalFileName(asset.name);
@@ -46,11 +47,16 @@ export async function pickAndImportBook(): Promise<ImportBookResult | null> {
   const fileUri = await copyBookFile(asset.uri, bookId);
   const createdAt = nowIso();
   let metadata: Awaited<ReturnType<typeof extractEpubMetadata>> = {};
+  const shouldExtractMetadata =
+    typeof asset.size !== "number" || asset.size <= METADATA_EXTRACTION_LIMIT_BYTES;
 
-  try {
-    metadata = await extractEpubMetadata(fileUri, bookId);
-  } catch {
-    metadata = {};
+  if (shouldExtractMetadata) {
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      metadata = await extractEpubMetadata(fileUri, bookId);
+    } catch {
+      metadata = {};
+    }
   }
 
   const book = insertBook({
@@ -65,6 +71,7 @@ export async function pickAndImportBook(): Promise<ImportBookResult | null> {
     originalFileName: asset.name,
     fileType: "epub",
     progress: 0,
+    currentChapterIndex: 0,
     currentLocation: null,
     lastOpenedAt: null,
     createdAt,

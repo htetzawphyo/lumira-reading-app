@@ -2,7 +2,8 @@ import type { PropsWithChildren } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { View } from "react-native";
 
-import { colors, radii, shadows, spacing } from "@/design/tokens";
+import { useAppTheme } from "@/design/app-theme-provider";
+import { radii, shadows, spacing } from "@/design/tokens";
 
 type SurfaceProps = PropsWithChildren<{
   tone?: "default" | "strong" | "quiet" | "glass";
@@ -16,14 +17,15 @@ export function Surface({
   style,
   children,
 }: SurfaceProps) {
+  const { colors: themeColors } = useAppTheme();
   const backgroundColor =
     tone === "strong"
-      ? colors.background.panelStrong
+      ? themeColors.background.panelStrong
       : tone === "quiet"
-        ? colors.surface.soft
+        ? themeColors.surface.soft
         : tone === "glass"
-          ? colors.surface.glass
-          : colors.background.panel;
+          ? themeColors.surface.glass
+          : themeColors.background.panel;
 
   return (
     <View
@@ -33,7 +35,7 @@ export function Surface({
           borderRadius: radii.xl,
           borderCurve: "continuous",
           borderWidth: 1,
-          borderColor: colors.border.subtle,
+          borderColor: themeColors.border.subtle,
           boxShadow: tone === "quiet" ? undefined : shadows.soft,
           padding: padded ? spacing[5] : 0,
         },

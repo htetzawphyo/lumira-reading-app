@@ -1,14 +1,17 @@
-import { Sparkles } from "lucide-react-native";
+import { Image } from "expo-image";
 import { View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
-import { colors, radii, spacing } from "@/design/tokens";
+import { useAppTheme } from "@/design/app-theme-provider";
+import { radii, spacing } from "@/design/tokens";
 
 type BrandMarkProps = {
   compact?: boolean;
 };
 
 export function BrandMark({ compact }: BrandMarkProps) {
+  const { colors } = useAppTheme();
+
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[3] }}>
       <View
@@ -18,12 +21,20 @@ export function BrandMark({ compact }: BrandMarkProps) {
           alignItems: "center",
           justifyContent: "center",
           borderRadius: radii.md,
-          backgroundColor: colors.brand.violet,
+          backgroundColor: colors.background.panelStrong,
           borderWidth: 1,
           borderColor: "rgba(255, 255, 255, 0.16)",
+          overflow: "hidden",
         }}
       >
-        <Sparkles color={colors.text.primary} size={compact ? 17 : 19} />
+        <Image
+          source={require("../../../assets/lumira.png")}
+          contentFit="cover"
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+        />
       </View>
       {!compact ? (
         <View>

@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
-import { colors, spacing } from "@/design/tokens";
+import { useAppTheme } from "@/design/app-theme-provider";
+import { spacing } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
 
 type AppBootstrapProps = {
@@ -11,6 +12,7 @@ type AppBootstrapProps = {
 };
 
 export function AppBootstrap({ children }: AppBootstrapProps) {
+  const { colors } = useAppTheme();
   const dbReady = useBooksStore((state) => state.dbReady);
   const dbError = useBooksStore((state) => state.dbError);
   const initialize = useBooksStore((state) => state.initialize);

@@ -2,6 +2,9 @@ import type { PropsWithChildren } from "react";
 import type { StyleProp, TextProps, TextStyle } from "react-native";
 import { Text } from "react-native";
 
+import type { AppThemeColors } from "@/design/app-themes";
+import { useAppTheme } from "@/design/app-theme-provider";
+import { getAppFontFamily } from "@/design/fonts";
 import { colors, typography } from "@/design/tokens";
 
 type TextVariant =
@@ -67,13 +70,16 @@ const variants: Record<TextVariant, TextStyle> = {
   },
 };
 
-function resolveColor(color: AppTextProps["color"]) {
+function resolveColor(
+  color: AppTextProps["color"],
+  themeColors: AppThemeColors,
+) {
   if (!color) {
-    return colors.text.primary;
+    return themeColors.text.primary;
   }
 
-  if (color in colors.text) {
-    return colors.text[color as keyof typeof colors.text];
+  if (color in themeColors.text) {
+    return themeColors.text[color as keyof typeof colors.text];
   }
 
   return color;
@@ -88,12 +94,18 @@ export function AppText({
   children,
   ...props
 }: AppTextProps) {
+  const { colors: themeColors } = useAppTheme();
+  const effectiveWeight = weight
+    ? typography.weight[weight]
+    : variants[variant].fontWeight;
+
   return (
     <Text
       {...props}
       style={[
         {
-          color: resolveColor(color),
+          color: resolveColor(color, themeColors),
+          fontFamily: getAppFontFamily(effectiveWeight),
           letterSpacing: 0,
           textAlign: align,
         },
