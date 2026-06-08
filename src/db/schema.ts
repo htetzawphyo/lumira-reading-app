@@ -77,11 +77,15 @@ export const readerSettings = sqliteTable("reader_settings", {
     .default("noto-serif-myanmar"),
   lineHeight: real("line_height").notNull().default(1.72),
   contentWidth: integer("content_width").notNull().default(720),
-  musicianAutoScrollSpeed: real("musician_auto_scroll_speed").notNull().default(28),
+  musicianAutoScrollSpeed: real("musician_auto_scroll_speed")
+    .notNull()
+    .default(28),
   musicianKeepAwake: integer("musician_keep_awake", { mode: "boolean" })
     .notNull()
     .default(true),
-  musicianExtraLargeText: integer("musician_extra_large_text", { mode: "boolean" })
+  musicianExtraLargeText: integer("musician_extra_large_text", {
+    mode: "boolean",
+  })
     .notNull()
     .default(false),
   musicianHighContrast: integer("musician_high_contrast", { mode: "boolean" })
@@ -118,15 +122,33 @@ export const notificationSettings = sqliteTable("notification_settings", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const cloudSyncSettings = sqliteTable("cloud_sync_settings", {
+  id: text("id").primaryKey(),
+  cloudBackupEnabled: integer("cloud_backup_enabled", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(false),
+  autoSyncWifiOnly: integer("auto_sync_wifi_only", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  allowMobileDataSync: integer("allow_mobile_data_sync", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const folders = sqliteTable(
   "folders",
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
+    icon: text("icon").notNull().default("folder"),
+    accentColor: text("accent_color").notNull().default("#8B5CF6"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
-  (table) => [uniqueIndex("folders_name_unique_idx").on(table.name)],
+  (table) => [uniqueIndex("folders_name_unique_idx").on(table.name)]
 );
 
 export const folderBooks = sqliteTable(
@@ -144,9 +166,9 @@ export const folderBooks = sqliteTable(
   (table) => [
     uniqueIndex("folder_books_folder_book_unique_idx").on(
       table.folderId,
-      table.bookId,
+      table.bookId
     ),
-  ],
+  ]
 );
 
 export const schema = {
@@ -156,6 +178,7 @@ export const schema = {
   readingSessions,
   readerSettings,
   notificationSettings,
+  cloudSyncSettings,
   folders,
   folderBooks,
 };

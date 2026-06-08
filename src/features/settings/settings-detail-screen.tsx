@@ -2,11 +2,15 @@ import { useRouter } from "expo-router";
 import {
   ArrowLeft,
   Bell,
+  BookOpen,
   Check,
   Cloud,
+  CreditCard,
   Crown,
+  Globe2,
   Lock,
   Mail,
+  MessageCircle,
   Moon,
   Palette,
   Shield,
@@ -16,7 +20,7 @@ import {
 } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Switch, View } from "react-native";
+import { Alert, Modal, Platform, Pressable, ScrollView, Switch, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
 import { Button } from "@/components/ui/button";
@@ -33,10 +37,22 @@ import { getReaderFontOption } from "@/design/fonts";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
+import {
+  loginWithGoogleIdToken,
+  logoutFromBackend,
+  refreshCurrentUser,
+} from "@/features/auth/auth-service";
+import { isPremiumAuthSession, useAuthStore } from "@/features/auth/auth-store";
 import type {
   NotificationSettings,
   NotificationSettingsInput,
 } from "@/features/books/types";
+import {
+  fallbackProPlanConfig,
+  proPlanService,
+  type ProPlanConfig,
+  type ProPlanFeatureCategory,
+} from "@/features/settings/pro-plan-service";
 import { SyncBackupScreen } from "@/features/sync/sync-backup-screen";
 
 export type SettingsDetailKind =
@@ -326,9 +342,121 @@ function ToggleRow({
   );
 }
 
+function isConfiguredGoogleClientId(clientId: string) {
+  return (
+    clientId.endsWith(".apps.googleusercontent.com") &&
+    !clientId.includes("client-id.apps.googleusercontent.com")
+  );
+}
+
 function ProfileDetail() {
   const responsive = useResponsive();
   const { colors } = useAppTheme();
+  const session = useAuthStore((state) => state.session);
+  const hydrateAuth = useAuthStore((state) => state.hydrate);
+  const [authLoading, setAuthLoading] = useState(false);
+  const googleClientId = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "";
+  const user = session?.user;
+
+  useEffect(() => {
+    hydrateAuth()
+      .then((session) => {
+        if (session) {
+          return refreshCurrentUser();
+        }
+        return null;
+      })
+      .catch(() => undefined);
+  }, [hydrateAuth]);
+
+  async function handleGoogleSignIn() {
+    if (!isConfiguredGoogleClientId(googleClientId)) {
+      Alert.alert(
+        "Google Client ID missing",
+        "Add the Web OAuth client ID to EXPO_PUBLIC_GOOGLE_CLIENT_ID, then restart Expo.",
+      );
+      return;
+    }
+
+    if (Platform.OS === "web") {
+      Alert.alert(
+        "Google sign-in unavailable",
+        "Web Google sign-in is not configured for this app yet.",
+      );
+      return;
+    }
+
+    if (Platform.OS === "ios" && !isConfiguredGoogleClientId(googleIosClientId)) {
+      Alert.alert(
+        "iOS Google Client ID missing",
+        "Add EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID from Google Cloud Console, then restart Expo.",
+      );
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      if (__DEV__) {
+        console.log("Lumira Google Sign-In", {
+          platform: Platform.OS,
+          webClientId: googleClientId,
+          iosClientId: googleIosClientId || null,
+        });
+      }
+
+      const { GoogleSignin } = await import("@react-native-google-signin/google-signin");
+
+      GoogleSignin.configure({
+        webClientId: googleClientId,
+        iosClientId: googleIosClientId || undefined,
+        offlineAccess: false,
+        scopes: ["profile", "email"],
+      });
+
+      if (Platform.OS === "android") {
+        await GoogleSignin.hasPlayServices({
+          showPlayServicesUpdateDialog: true,
+        });
+      }
+
+      const signInResponse = await GoogleSignin.signIn();
+
+      if (signInResponse.type === "cancelled") {
+        return;
+      }
+
+      const idToken = signInResponse.data.idToken;
+
+      if (!idToken) {
+        Alert.alert("Google sign-in failed", "Google did not return an ID token.");
+        return;
+      }
+
+      await loginWithGoogleIdToken(idToken);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not sign in with Google.";
+      Alert.alert(
+        "Google sign-in unavailable",
+        message.includes("RNGoogleSignin") || message.includes("native module")
+          ? "The Google Sign-In native module is not in this app build yet. Rebuild the development app, then try again."
+          : message,
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleSignOut() {
+    setAuthLoading(true);
+    try {
+      const { GoogleSignin } = await import("@react-native-google-signin/google-signin");
+      await GoogleSignin.signOut().catch(() => undefined);
+      await logoutFromBackend();
+    } finally {
+      setAuthLoading(false);
+    }
+  }
 
   return (
     <DetailShell
@@ -359,37 +487,136 @@ function ProfileDetail() {
         </View>
         <View style={{ flex: 1, gap: spacing[2], minWidth: 0 }}>
           <AppText color="primary" variant={responsive.isPhone ? "bodyLarge" : "title3"} weight="semibold" numberOfLines={1}>
-            John Doe
+            {user?.name ?? "Lumira Reader"}
           </AppText>
           <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"} numberOfLines={1} selectable>
-            john@example.com
+            {user?.email ?? "Not signed in"}
           </AppText>
           <Button
-            title="Edit Profile"
+            title={
+              authLoading
+                ? "Working..."
+                : user
+                  ? "Sign Out"
+                  : "Sign in with Google"
+            }
             variant="secondary"
+            onPress={user ? handleSignOut : handleGoogleSignIn}
             style={responsive.isPhone ? { minHeight: 40, paddingHorizontal: spacing[3] } : undefined}
           />
         </View>
       </Surface>
 
       <Section title="Account">
-        <InfoRow label="Display name" value="John Doe" icon={UserRound} />
-        <InfoRow label="Email" value="john@example.com" icon={Mail} />
-        <InfoRow label="Privacy" value="Offline-first, local library" icon={Shield} />
+        <InfoRow label="Display name" value={user?.name ?? "Not set"} icon={UserRound} />
+        <InfoRow label="Email" value={user?.email ?? "Not signed in"} icon={Mail} />
+        <InfoRow label="Plan" value={user?.plan ?? "Local only"} icon={Crown} />
+        <InfoRow label="Privacy" value="Offline-first, optional cloud backup" icon={Shield} />
       </Section>
     </DetailShell>
   );
 }
 
+function priceDisplay(
+  price:
+    | ProPlanConfig["prices"]["mm"]
+    | ProPlanConfig["prices"]["international"],
+) {
+  return price.display || "Price unavailable";
+}
+
+function aiLimitDisplay(value: number | null, fallback: string) {
+  return typeof value === "number" && value > 0
+    ? value.toLocaleString()
+    : fallback;
+}
+
+function featureIcon(category: ProPlanFeatureCategory) {
+  switch (category) {
+    case "appearance":
+      return Palette;
+    case "reading":
+      return BookOpen;
+    case "cloud":
+      return Cloud;
+    case "ai":
+      return Sparkles;
+    default:
+      return Check;
+  }
+}
+
 function PremiumDetail() {
-  const [plan, setPlan] = useState<"annual" | "monthly">("annual");
+  const router = useRouter();
+  const [config, setConfig] = useState<ProPlanConfig>(fallbackProPlanConfig);
+  const [selectedRegion, setSelectedRegion] = useState<"MM" | "international">(
+    "MM",
+  );
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<
+    string | null
+  >(null);
   const responsive = useResponsive();
   const { colors } = useAppTheme();
+  const selectedMethods = config.paymentMethods.filter((method) =>
+    selectedRegion === "MM"
+      ? method.region === "MM"
+      : method.region === "international",
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    proPlanService
+      .getProPlanConfig()
+      .then((nextConfig) => {
+        if (active) {
+          setConfig(nextConfig);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setConfig(fallbackProPlanConfig);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const chooseRegion = (region: "MM" | "international") => {
+    setSelectedRegion(region);
+    setSelectedPaymentMethodId(null);
+  };
+
+  const openPaymentModal = () => {
+    const firstAvailableMethod = selectedMethods.find((method) => method.enabled);
+
+    setSelectedPaymentMethodId(firstAvailableMethod?.id ?? null);
+    setPaymentModalVisible(true);
+  };
+
+  const continuePayment = () => {
+    const selectedMethod = selectedMethods.find(
+      (method) => method.id === selectedPaymentMethodId && method.enabled,
+    );
+
+    if (!selectedMethod) {
+      return;
+    }
+
+    setPaymentModalVisible(false);
+    router.push({
+      pathname: "/settings/payment-instructions",
+      params: { method: selectedMethod.id },
+    });
+  };
 
   return (
     <DetailShell
-      title="Lumira Pro"
-      subtitle="AI assistance, richer insights, and advanced reading analytics."
+      title={config.planName}
+      subtitle={config.subtitle}
       icon={Crown}
       accent={colors.brand.purple}
     >
@@ -401,7 +628,13 @@ function PremiumDetail() {
           padding: responsive.isPhone ? spacing[4] : spacing[5],
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: responsive.isPhone ? spacing[3] : spacing[4] }}>
+        <View
+          style={{
+            flexDirection: responsive.isSmallPhone ? "column" : "row",
+            alignItems: responsive.isSmallPhone ? "flex-start" : "center",
+            gap: responsive.isPhone ? spacing[3] : spacing[4],
+          }}
+        >
           <View
             style={{
               width: responsive.isPhone ? 52 : 66,
@@ -416,42 +649,293 @@ function PremiumDetail() {
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <AppText color="primary" variant={responsive.isPhone ? "bodyLarge" : "title3"} weight="semibold">
-              Upgrade your reading workspace
+              Read better with Lumira Pro
             </AppText>
-            <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"}>
-              Summaries, idea links, and deeper knowledge review.
+            <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"} numberOfLines={3}>
+              {config.heroText}
             </AppText>
           </View>
         </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: responsive.isPhone ? spacing[3] : spacing[4] }}>
+
+        <View
+          style={{
+            flexDirection: responsive.isPhone ? "column" : "row",
+            gap: responsive.isPhone ? spacing[3] : spacing[4],
+          }}
+        >
           <ChoiceCard
-            title="$59/year"
-            subtitle="Best value for ongoing reading"
+            title={priceDisplay(config.prices.mm)}
+            subtitle="Myanmar price · Manual transfer with local wallets"
             icon={Crown}
-            selected={plan === "annual"}
-            onPress={() => setPlan("annual")}
+            selected={selectedRegion === "MM"}
+            onPress={() => chooseRegion("MM")}
           />
           <ChoiceCard
-            title="$8/month"
-            subtitle="Flexible monthly access"
-            icon={Sparkles}
-            selected={plan === "monthly"}
-            onPress={() => setPlan("monthly")}
+            title={priceDisplay(config.prices.international)}
+            subtitle="International price · Card payment coming soon"
+            icon={Globe2}
+            selected={selectedRegion === "international"}
+            onPress={() => chooseRegion("international")}
           />
         </View>
+
         <Button
-          title="Continue"
+          title="Upgrade to Lumira Pro"
+          icon={Crown}
           variant="secondary"
           fullWidth
+          onPress={openPaymentModal}
           style={responsive.isPhone ? { minHeight: 42, paddingHorizontal: spacing[3] } : undefined}
         />
       </Surface>
 
-      <Section title="Included">
-        <InfoRow label="AI" value="Unlimited assistant sessions" icon={Sparkles} />
-        <InfoRow label="Knowledge" value="Advanced highlight analytics" icon={Crown} />
-        <InfoRow label="Privacy" value="Your imported books stay local" icon={Lock} />
+      <View style={{ gap: responsive.isPhone ? spacing[3] : spacing[4] }}>
+        <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"} weight="semibold">
+          Included
+        </AppText>
+        <Surface padded={false} style={{ overflow: "hidden" }}>
+          {config.features.map((feature) => {
+            const Icon = featureIcon(feature.category);
+
+            return (
+              <View
+                key={feature.id}
+                style={{
+                  minHeight: responsive.isPhone ? 74 : 86,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: responsive.isPhone ? spacing[3] : spacing[4],
+                  borderBottomWidth:
+                    feature.id === config.features.at(-1)?.id ? 0 : 1,
+                  borderBottomColor: colors.border.subtle,
+                  paddingHorizontal: responsive.isPhone ? spacing[4] : spacing[5],
+                  paddingVertical: responsive.isPhone ? spacing[3] : spacing[4],
+                }}
+              >
+                <View
+                  style={{
+                    width: responsive.isPhone ? 38 : 44,
+                    height: responsive.isPhone ? 38 : 44,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: radii.md,
+                    backgroundColor: colors.surface.soft,
+                  }}
+                >
+                  <Icon color={colors.brand.violet} size={responsive.isPhone ? 19 : 22} strokeWidth={2.1} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0, gap: spacing[1] }}>
+                  <AppText color="primary" variant="body" weight="semibold" numberOfLines={1}>
+                    {feature.title}
+                  </AppText>
+                  <AppText color="secondary" variant={responsive.isPhone ? "caption" : "footnote"} numberOfLines={2}>
+                    {feature.description}
+                  </AppText>
+                </View>
+                <Check color={colors.brand.emerald} size={responsive.isPhone ? 18 : 20} strokeWidth={2.4} />
+              </View>
+            );
+          })}
+        </Surface>
+      </View>
+
+      <Surface
+        tone="quiet"
+        style={{
+          gap: responsive.isPhone ? spacing[3] : spacing[4],
+          padding: responsive.isPhone ? spacing[4] : spacing[5],
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[3] }}>
+          <View
+            style={{
+              width: responsive.isPhone ? 40 : 46,
+              height: responsive.isPhone ? 40 : 46,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: radii.md,
+              backgroundColor: colors.background.panelStrong,
+            }}
+          >
+            <MessageCircle color={colors.brand.violet} size={responsive.isPhone ? 20 : 23} strokeWidth={2.1} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <AppText color="primary" variant={responsive.isPhone ? "body" : "bodyLarge"} weight="semibold">
+              AI features include monthly usage limits.
+            </AppText>
+            <AppText color="secondary" variant={responsive.isPhone ? "caption" : "footnote"} numberOfLines={2}>
+              Limits help keep Lumira Pro affordable and stable.
+            </AppText>
+          </View>
+        </View>
+
+        <View
+          style={{
+            flexDirection: responsive.isSmallPhone ? "column" : "row",
+            gap: spacing[3],
+          }}
+        >
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <AppText color="primary" variant="footnote" weight="semibold">
+              AI Book Summary
+            </AppText>
+            <AppText color="secondary" variant="caption">
+              Monthly limit: {aiLimitDisplay(config.aiLimits.summariesPerMonth, "50")} summaries / month
+            </AppText>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <AppText color="primary" variant="footnote" weight="semibold">
+              Discuss with AI
+            </AppText>
+            <AppText color="secondary" variant="caption">
+              Monthly limit: {aiLimitDisplay(config.aiLimits.chatMessagesPerMonth, "300")} messages / month
+            </AppText>
+          </View>
+        </View>
+
+        <AppText color="tertiary" variant="caption">
+          {config.promotionalText}
+        </AppText>
+      </Surface>
+
+      <Section title="Payment methods">
+        <InfoRow
+          label="Myanmar"
+          value="AYA Pay, Wave Pay, UAB Pay manual transfer"
+          icon={CreditCard}
+        />
+        <InfoRow
+          label="International"
+          value="Card payment with Stripe is coming soon"
+          icon={Globe2}
+        />
+        <InfoRow
+          label="Privacy"
+          value="Your imported EPUB files stay local unless you choose cloud backup"
+          icon={Lock}
+        />
       </Section>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={paymentModalVisible}
+        onRequestClose={() => setPaymentModalVisible(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            backgroundColor: "rgba(0, 0, 0, 0.58)",
+            padding: responsive.isPhone ? spacing[4] : spacing[8],
+          }}
+        >
+          <Surface
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              alignSelf: "center",
+              gap: responsive.isPhone ? spacing[4] : spacing[5],
+              padding: responsive.isPhone ? spacing[4] : spacing[5],
+            }}
+          >
+            <View style={{ gap: spacing[1] }}>
+              <AppText color="primary" variant={responsive.isPhone ? "title3" : "title2"} weight="bold">
+                {selectedRegion === "MM" ? "Choose Payment Method" : "International Payment"}
+              </AppText>
+              <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"}>
+                {selectedRegion === "MM"
+                  ? "Choose a local payment method to continue."
+                  : "Card payment with Stripe is coming soon."}
+              </AppText>
+            </View>
+
+            <View style={{ gap: spacing[2] }}>
+              {selectedMethods.map((method) => {
+                const selected = selectedPaymentMethodId === method.id;
+                const disabled = !method.enabled;
+
+                return (
+                  <Pressable
+                    key={method.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected, disabled }}
+                    disabled={disabled}
+                    onPress={() => setSelectedPaymentMethodId(method.id)}
+                    style={({ pressed }) => ({
+                      minHeight: responsive.isPhone ? 54 : 62,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: spacing[3],
+                      borderRadius: radii.lg,
+                      borderWidth: 1,
+                      borderColor: selected
+                        ? colors.brand.violet
+                        : colors.border.subtle,
+                      backgroundColor: selected
+                        ? colors.surface.medium
+                        : colors.surface.soft,
+                      paddingHorizontal: responsive.isPhone
+                        ? spacing[3]
+                        : spacing[4],
+                      opacity: disabled ? 0.48 : pressed ? 0.78 : 1,
+                    })}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <AppText color="primary" variant="body" weight="semibold">
+                        {method.name}
+                      </AppText>
+                      <AppText color="secondary" variant="caption">
+                        {method.enabled ? "Available" : "Coming soon"}
+                      </AppText>
+                    </View>
+                    {selected ? (
+                      <Check
+                        color={colors.brand.violet}
+                        size={18}
+                        strokeWidth={2.5}
+                      />
+                    ) : (
+                      <AppText
+                        color="tertiary"
+                        variant="caption"
+                        weight="semibold"
+                      >
+                        {method.comingSoon ? "Soon" : "Ready"}
+                      </AppText>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {selectedRegion === "MM" ? (
+              <Button
+                title="Continue"
+                variant="primary"
+                fullWidth
+                disabled={!selectedPaymentMethodId}
+                onPress={continuePayment}
+                style={[
+                  responsive.isPhone
+                    ? { minHeight: 42, paddingHorizontal: spacing[3] }
+                    : undefined,
+                  !selectedPaymentMethodId ? { opacity: 0.48 } : null,
+                ]}
+              />
+            ) : null}
+
+            <Button
+              title="Close"
+              variant={selectedRegion === "MM" ? "ghost" : "secondary"}
+              fullWidth
+              onPress={() => setPaymentModalVisible(false)}
+              style={responsive.isPhone ? { minHeight: 42, paddingHorizontal: spacing[3] } : undefined}
+            />
+          </Surface>
+        </View>
+      </Modal>
     </DetailShell>
   );
 }
@@ -485,14 +969,16 @@ function ThemeChoiceCard({
   theme,
   selected,
   onPress,
+  isPremiumUser,
 }: {
   theme: AppTheme;
   selected: boolean;
   onPress: () => void;
+  isPremiumUser: boolean;
 }) {
   const responsive = useResponsive();
   const { colors } = useAppTheme();
-  const canUseTheme = canUseAppTheme(theme.id, false);
+  const canUseTheme = canUseAppTheme(theme.id, isPremiumUser);
 
   return (
     <Pressable
@@ -981,11 +1467,12 @@ function ScheduleEditorModal({
 
 function AppearanceDetail() {
   const responsive = useResponsive();
+  const isPremiumUser = useAuthStore((state) => isPremiumAuthSession(state.session));
   const currentAppThemeId = useBooksStore(
     (state) => state.readerSettings.appThemeId,
   );
   const readerSettings = useBooksStore((state) => state.readerSettings);
-  const activeAppThemeId = getAppTheme(currentAppThemeId).id;
+  const activeAppThemeId = getAppTheme(currentAppThemeId, isPremiumUser).id;
   const setReaderSettings = useBooksStore((state) => state.setReaderSettings);
 
   return (
@@ -1012,6 +1499,7 @@ function AppearanceDetail() {
                 theme={theme}
                 selected={activeAppThemeId === theme.id}
                 onPress={() => setReaderSettings({ appThemeId: theme.id })}
+                isPremiumUser={isPremiumUser}
               />
             ))}
           </View>

@@ -3,6 +3,7 @@ import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { getDb, getSqlite, isSQLiteAvailable } from "@/db/client";
 import {
   books,
+  cloudSyncSettings,
   folderBooks,
   folders,
   highlights,
@@ -16,10 +17,7 @@ import {
   defaultAppThemeId,
   migrateAppThemeId,
 } from "@/design/app-themes";
-import {
-  defaultReaderFontFamily,
-  isReaderFontFamily,
-} from "@/design/fonts";
+import { defaultReaderFontFamily, isReaderFontFamily } from "@/design/fonts";
 import {
   canUseReaderTheme,
   defaultReaderTheme,
@@ -27,6 +25,8 @@ import {
 } from "@/features/reader/reader-theme-options";
 import type {
   Book,
+  CloudSyncSettings,
+  CloudSyncSettingsInput,
   FolderWithCount,
   Highlight,
   HighlightColor,
@@ -46,8 +46,18 @@ import { createId } from "@/utils/id";
 import { nowIso } from "@/utils/date";
 
 type NewBook = typeof books.$inferInsert;
+type NewFolder = typeof folders.$inferInsert;
+type NewFolderBook = typeof folderBooks.$inferInsert;
+type NewHighlight = typeof highlights.$inferInsert;
+type NewNote = typeof notes.$inferInsert;
+type FolderInput = {
+  name: string;
+  icon?: string;
+  accentColor?: string;
+};
 const readerSettingsId = "default";
 const notificationSettingsId = "default";
+const cloudSyncSettingsId = "default";
 
 const defaultReaderSettings: Omit<ReaderSettings, "updatedAt"> = {
   id: readerSettingsId,
@@ -82,8 +92,15 @@ const defaultNotificationSettings: Omit<NotificationSettings, "updatedAt"> = {
   insightDigestNotificationId: null,
 };
 
+const defaultCloudSyncSettings: Omit<CloudSyncSettings, "updatedAt"> = {
+  id: cloudSyncSettingsId,
+  cloudBackupEnabled: false,
+  autoSyncWifiOnly: true,
+  allowMobileDataSync: false,
+};
+
 function normalizePermissionStatus(
-  value: string | null | undefined,
+  value: string | null | undefined
 ): NotificationPermissionStatus {
   if (value === "granted" || value === "denied" || value === "undetermined") {
     return value;
@@ -117,13 +134,29 @@ function normalizeFolderName(name: string) {
   return name.trim().replace(/\s+/g, " ");
 }
 
+const supportedFolderIcons = new Set([
+  "folder",
+  "book",
+  "bookmark",
+  "file",
+  "star",
+]);
+
+function normalizeFolderIcon(icon: string | null | undefined) {
+  return icon && supportedFolderIcons.has(icon) ? icon : "folder";
+}
+
+function normalizeFolderAccent(accentColor: string | null | undefined) {
+  return accentColor?.trim() || "#8B5CF6";
+}
+
 function isDuplicateFolderName(name: string, ignoreFolderId?: string) {
   const normalizedName = normalizeFolderName(name).toLocaleLowerCase();
 
   return listFolders().some(
     (folder) =>
       folder.id !== ignoreFolderId &&
-      folder.name.toLocaleLowerCase() === normalizedName,
+      folder.name.toLocaleLowerCase() === normalizedName
   );
 }
 
@@ -132,18 +165,20 @@ export function listFolders(): FolderWithCount[] {
     return [];
   }
 
-  const rows = getSqlite().getAllSync<
-    {
-      id: string;
-      name: string;
-      createdAt: string;
-      updatedAt: string;
-      bookCount: number;
-    }
-  >(`
+  const rows = getSqlite().getAllSync<{
+    id: string;
+    name: string;
+    icon: string;
+    accentColor: string;
+    createdAt: string;
+    updatedAt: string;
+    bookCount: number;
+  }>(`
     SELECT
       folders.id,
       folders.name,
+      folders.icon,
+      folders.accent_color as accentColor,
       folders.created_at as createdAt,
       folders.updated_at as updatedAt,
       COUNT(folder_books.book_id) as bookCount
@@ -155,6 +190,8 @@ export function listFolders(): FolderWithCount[] {
 
   return rows.map((row) => ({
     ...row,
+    icon: normalizeFolderIcon(row.icon),
+    accentColor: normalizeFolderAccent(row.accentColor),
     bookCount: Number(row.bookCount ?? 0),
   }));
 }
@@ -168,6 +205,8 @@ export function getFolderById(folderId: string): FolderWithCount | undefined {
     | {
         id: string;
         name: string;
+        icon: string;
+        accentColor: string;
         createdAt: string;
         updatedAt: string;
         bookCount: number;
@@ -178,6 +217,8 @@ export function getFolderById(folderId: string): FolderWithCount | undefined {
       SELECT
         folders.id,
         folders.name,
+        folders.icon,
+        folders.accent_color as accentColor,
         folders.created_at as createdAt,
         folders.updated_at as updatedAt,
         COUNT(folder_books.book_id) as bookCount
@@ -186,18 +227,38 @@ export function getFolderById(folderId: string): FolderWithCount | undefined {
       WHERE folders.id = ?
       GROUP BY folders.id
     `,
-    [folderId],
+    [folderId]
   );
 
-  return row ? { ...row, bookCount: Number(row.bookCount ?? 0) } : undefined;
+  return row
+    ? {
+        ...row,
+        icon: normalizeFolderIcon(row.icon),
+        accentColor: normalizeFolderAccent(row.accentColor),
+        bookCount: Number(row.bookCount ?? 0),
+      }
+    : undefined;
 }
 
-export function createFolder(name: string): FolderWithCount {
+function getFolderByName(name: string): FolderWithCount | undefined {
+  if (!isSQLiteAvailable()) {
+    return undefined;
+  }
+
+  const normalizedName = normalizeFolderName(name).toLocaleLowerCase();
+
+  return listFolders().find(
+    (folder) => folder.name.toLocaleLowerCase() === normalizedName
+  );
+}
+
+export function createFolder(input: string | FolderInput): FolderWithCount {
   if (!isSQLiteAvailable()) {
     throw new Error("Local database is not ready yet.");
   }
 
-  const normalizedName = normalizeFolderName(name);
+  const folderInput = typeof input === "string" ? { name: input } : input;
+  const normalizedName = normalizeFolderName(folderInput.name);
 
   if (!normalizedName) {
     throw new Error("Folder name cannot be empty.");
@@ -215,6 +276,8 @@ export function createFolder(name: string): FolderWithCount {
     .values({
       id,
       name: normalizedName,
+      icon: normalizeFolderIcon(folderInput.icon),
+      accentColor: normalizeFolderAccent(folderInput.accentColor),
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -291,7 +354,7 @@ export function listBooksForFolder(folderId: string): Book[] {
 
 export function listBooksNotInFolder(folderId: string): Book[] {
   const folderBookIds = new Set(
-    listBooksForFolder(folderId).map((book) => book.id),
+    listBooksForFolder(folderId).map((book) => book.id)
   );
 
   return listBooks().filter((book) => !folderBookIds.has(book.id));
@@ -309,7 +372,7 @@ export function addBooksToFolder(folderId: string, bookIds: string[]) {
   }
 
   const uniqueBookIds = Array.from(new Set(bookIds)).filter((bookId) =>
-    Boolean(getBookById(bookId)),
+    Boolean(getBookById(bookId))
   );
 
   if (uniqueBookIds.length === 0) {
@@ -326,7 +389,7 @@ export function addBooksToFolder(folderId: string, bookIds: string[]) {
         folderId,
         bookId,
         createdAt: timestamp,
-      })),
+      }))
     )
     .onConflictDoNothing({
       target: [folderBooks.folderId, folderBooks.bookId],
@@ -342,7 +405,7 @@ export function removeBookFromFolder(folderId: string, bookId: string) {
   getDb()
     .delete(folderBooks)
     .where(
-      and(eq(folderBooks.folderId, folderId), eq(folderBooks.bookId, bookId)),
+      and(eq(folderBooks.folderId, folderId), eq(folderBooks.bookId, bookId))
     )
     .run();
 }
@@ -373,14 +436,113 @@ export function insertBook(book: NewBook): Book {
   return getBookById(book.id) as Book;
 }
 
-export function markBookOpened(bookId: string, openedAt: string): Book | undefined {
+export function updateBookCoverUri(
+  bookId: string,
+  coverUri: string
+): Book | undefined {
+  if (!isSQLiteAvailable()) {
+    return undefined;
+  }
+
+  getDb()
+    .update(books)
+    .set({ coverUri, updatedAt: nowIso() })
+    .where(eq(books.id, bookId))
+    .run();
+
+  return getBookById(bookId);
+}
+
+export function restoreBookRecord(book: NewBook): Book | undefined {
+  if (!isSQLiteAvailable()) {
+    return undefined;
+  }
+
+  getDb()
+    .insert(books)
+    .values(book)
+    .onConflictDoNothing({ target: books.id })
+    .run();
+
+  return getBookById(book.id);
+}
+
+export function restoreFolderRecord(folder: NewFolder): FolderWithCount | undefined {
+  if (!isSQLiteAvailable()) {
+    return undefined;
+  }
+
+  const existingById = getFolderById(folder.id);
+
+  if (existingById) {
+    return existingById;
+  }
+
+  const existingByName = getFolderByName(folder.name);
+
+  if (existingByName) {
+    return existingByName;
+  }
+
+  getDb()
+    .insert(folders)
+    .values(folder)
+    .onConflictDoNothing()
+    .run();
+
+  return getFolderById(folder.id);
+}
+
+export function restoreFolderBookRecord(link: NewFolderBook) {
+  if (!isSQLiteAvailable()) {
+    return;
+  }
+
+  getDb()
+    .insert(folderBooks)
+    .values(link)
+    .onConflictDoNothing({
+      target: [folderBooks.folderId, folderBooks.bookId],
+    })
+    .run();
+}
+
+export function restoreHighlightRecord(highlight: NewHighlight) {
+  if (!isSQLiteAvailable()) {
+    return;
+  }
+
+  getDb()
+    .insert(highlights)
+    .values(highlight)
+    .onConflictDoNothing({ target: highlights.id })
+    .run();
+}
+
+export function restoreNoteRecord(note: NewNote) {
+  if (!isSQLiteAvailable()) {
+    return;
+  }
+
+  getDb()
+    .insert(notes)
+    .values(note)
+    .onConflictDoNothing({ target: notes.id })
+    .run();
+}
+
+export function markBookOpened(
+  bookId: string,
+  openedAt: string
+): Book | undefined {
   const existing = getBookById(bookId);
 
   if (!existing) {
     return undefined;
   }
 
-  getDb().update(books)
+  getDb()
+    .update(books)
     .set({
       lastOpenedAt: openedAt,
       updatedAt: openedAt,
@@ -389,7 +551,8 @@ export function markBookOpened(bookId: string, openedAt: string): Book | undefin
     .where(eq(books.id, bookId))
     .run();
 
-  getDb().insert(readingSessions)
+  getDb()
+    .insert(readingSessions)
     .values({
       id: createId(),
       bookId,
@@ -430,9 +593,13 @@ export function updateBookReadingState({
   const safeProgress = Math.min(Math.max(progress, 0), 1);
   const safeScrollProgress = Math.min(Math.max(scrollProgress ?? 0, 0), 1);
   const safePageIndex =
-    typeof pageIndex === "number" ? Math.max(0, Math.floor(pageIndex)) : undefined;
+    typeof pageIndex === "number"
+      ? Math.max(0, Math.floor(pageIndex))
+      : undefined;
   const safePageCount =
-    typeof pageCount === "number" ? Math.max(1, Math.floor(pageCount)) : undefined;
+    typeof pageCount === "number"
+      ? Math.max(1, Math.floor(pageCount))
+      : undefined;
   const safeAutoScrollSpeed =
     typeof autoScrollSpeed === "number"
       ? Math.min(Math.max(autoScrollSpeed, 8), 96)
@@ -522,18 +689,18 @@ export function getReaderSettings(): ReaderSettings {
     };
 
     const migratedAppThemeId = migrateAppThemeId(
-      existingSettings.appThemeId ?? existingSettings.theme,
+      existingSettings.appThemeId ?? existingSettings.theme
     );
 
     return {
       ...existingSettings,
       theme: canUseReaderTheme(
         migrateReaderTheme(existingSettings.theme),
-        false,
+        true
       )
         ? migrateReaderTheme(existingSettings.theme)
         : defaultReaderTheme,
-      appThemeId: canUseAppTheme(migratedAppThemeId, false)
+      appThemeId: canUseAppTheme(migratedAppThemeId, true)
         ? migratedAppThemeId
         : defaultAppThemeId,
       readerFontFamily: isReaderFontFamily(existingSettings.readerFontFamily)
@@ -542,42 +709,56 @@ export function getReaderSettings(): ReaderSettings {
     };
   }
 
-  getDb()
-    .insert(readerSettings)
-    .values(fallback)
-    .run();
+  getDb().insert(readerSettings).values(fallback).run();
 
   return fallback;
 }
 
-export function updateReaderSettings(settings: ReaderSettingsInput): ReaderSettings {
+export function updateReaderSettings(
+  settings: ReaderSettingsInput,
+  options: { isPremiumUser?: boolean } = {},
+): ReaderSettings {
   const currentSettings = getReaderSettings();
+  const isPremiumUser = options.isPremiumUser ?? false;
   const requestedTheme = migrateReaderTheme(
-    settings.theme ?? currentSettings.theme,
+    settings.theme ?? currentSettings.theme
   );
   const requestedAppThemeId = migrateAppThemeId(
-    settings.appThemeId ?? currentSettings.appThemeId,
+    settings.appThemeId ?? currentSettings.appThemeId
   );
   const requestedReaderFontFamily =
     settings.readerFontFamily ?? currentSettings.readerFontFamily;
   const updatedSettings: ReaderSettings = {
     ...currentSettings,
     ...settings,
-    theme: canUseReaderTheme(requestedTheme, false)
+    theme: canUseReaderTheme(requestedTheme, isPremiumUser)
       ? requestedTheme
       : currentSettings.theme,
-    appThemeId: canUseAppTheme(requestedAppThemeId, false)
+    appThemeId: canUseAppTheme(requestedAppThemeId, isPremiumUser)
       ? requestedAppThemeId
       : currentSettings.appThemeId,
     readerFontFamily: isReaderFontFamily(requestedReaderFontFamily)
       ? requestedReaderFontFamily
       : currentSettings.readerFontFamily,
-    fontSize: Math.min(Math.max(settings.fontSize ?? currentSettings.fontSize, 15), 26),
-    lineHeight: Math.min(Math.max(settings.lineHeight ?? currentSettings.lineHeight, 1.35), 2.15),
-    contentWidth: Math.min(Math.max(settings.contentWidth ?? currentSettings.contentWidth, 520), 920),
+    fontSize: Math.min(
+      Math.max(settings.fontSize ?? currentSettings.fontSize, 15),
+      26
+    ),
+    lineHeight: Math.min(
+      Math.max(settings.lineHeight ?? currentSettings.lineHeight, 1.35),
+      2.15
+    ),
+    contentWidth: Math.min(
+      Math.max(settings.contentWidth ?? currentSettings.contentWidth, 520),
+      920
+    ),
     musicianAutoScrollSpeed: Math.min(
-      Math.max(settings.musicianAutoScrollSpeed ?? currentSettings.musicianAutoScrollSpeed, 8),
-      96,
+      Math.max(
+        settings.musicianAutoScrollSpeed ??
+          currentSettings.musicianAutoScrollSpeed,
+        8
+      ),
+      96
     ),
     musicianKeepAwake:
       settings.musicianKeepAwake ?? currentSettings.musicianKeepAwake,
@@ -640,7 +821,7 @@ export function getNotificationSettings(): NotificationSettings {
     return {
       ...existingSettings,
       permissionStatus: normalizePermissionStatus(
-        existingSettings.permissionStatus,
+        existingSettings.permissionStatus
       ),
     };
   }
@@ -651,53 +832,53 @@ export function getNotificationSettings(): NotificationSettings {
 }
 
 export function updateNotificationSettings(
-  settings: NotificationSettingsInput,
+  settings: NotificationSettingsInput
 ): NotificationSettings {
   const currentSettings = getNotificationSettings();
   const updatedSettings: NotificationSettings = {
     ...currentSettings,
     ...settings,
     permissionStatus: normalizePermissionStatus(
-      settings.permissionStatus ?? currentSettings.permissionStatus,
+      settings.permissionStatus ?? currentSettings.permissionStatus
     ),
     reminderHour: Math.min(
       Math.max(settings.reminderHour ?? currentSettings.reminderHour, 0),
-      23,
+      23
     ),
     reminderMinute: Math.min(
       Math.max(settings.reminderMinute ?? currentSettings.reminderMinute, 0),
-      59,
+      59
     ),
     digestWeekday: Math.min(
       Math.max(settings.digestWeekday ?? currentSettings.digestWeekday, 1),
-      7,
+      7
     ),
     digestHour: Math.min(
       Math.max(settings.digestHour ?? currentSettings.digestHour, 0),
-      23,
+      23
     ),
     digestMinute: Math.min(
       Math.max(settings.digestMinute ?? currentSettings.digestMinute, 0),
-      59,
+      59
     ),
     quietStartHour: Math.min(
       Math.max(settings.quietStartHour ?? currentSettings.quietStartHour, 0),
-      23,
+      23
     ),
     quietStartMinute: Math.min(
       Math.max(
         settings.quietStartMinute ?? currentSettings.quietStartMinute,
-        0,
+        0
       ),
-      59,
+      59
     ),
     quietEndHour: Math.min(
       Math.max(settings.quietEndHour ?? currentSettings.quietEndHour, 0),
-      23,
+      23
     ),
     quietEndMinute: Math.min(
       Math.max(settings.quietEndMinute ?? currentSettings.quietEndMinute, 0),
-      59,
+      59
     ),
     updatedAt: nowIso(),
   };
@@ -727,7 +908,64 @@ export function updateNotificationSettings(
         permissionStatus: updatedSettings.permissionStatus,
         readingReminderNotificationId:
           updatedSettings.readingReminderNotificationId,
-        insightDigestNotificationId: updatedSettings.insightDigestNotificationId,
+        insightDigestNotificationId:
+          updatedSettings.insightDigestNotificationId,
+        updatedAt: updatedSettings.updatedAt,
+      },
+    })
+    .run();
+
+  return updatedSettings;
+}
+
+export function getCloudSyncSettings(): CloudSyncSettings {
+  const fallback: CloudSyncSettings = {
+    ...defaultCloudSyncSettings,
+    updatedAt: nowIso(),
+  };
+
+  if (!isSQLiteAvailable()) {
+    return fallback;
+  }
+
+  const existing = getDb()
+    .select()
+    .from(cloudSyncSettings)
+    .where(eq(cloudSyncSettings.id, cloudSyncSettingsId))
+    .get();
+
+  if (existing) {
+    return existing as CloudSyncSettings;
+  }
+
+  getDb().insert(cloudSyncSettings).values(fallback).run();
+
+  return fallback;
+}
+
+export function updateCloudSyncSettings(
+  settings: CloudSyncSettingsInput
+): CloudSyncSettings {
+  const currentSettings = getCloudSyncSettings();
+  const updatedSettings: CloudSyncSettings = {
+    ...currentSettings,
+    ...settings,
+    updatedAt: nowIso(),
+  };
+
+  if (!isSQLiteAvailable()) {
+    return updatedSettings;
+  }
+
+  getDb()
+    .insert(cloudSyncSettings)
+    .values(updatedSettings)
+    .onConflictDoUpdate({
+      target: cloudSyncSettings.id,
+      set: {
+        cloudBackupEnabled: updatedSettings.cloudBackupEnabled,
+        autoSyncWifiOnly: updatedSettings.autoSyncWifiOnly,
+        allowMobileDataSync: updatedSettings.allowMobileDataSync,
         updatedAt: updatedSettings.updatedAt,
       },
     })
@@ -814,6 +1052,47 @@ export function listNotesForBook(bookId: string): Note[] {
     .all() as Note[];
 }
 
+export function listAllHighlights(): Highlight[] {
+  if (!isSQLiteAvailable()) {
+    return [];
+  }
+
+  return getDb()
+    .select()
+    .from(highlights)
+    .orderBy(desc(highlights.createdAt))
+    .all() as Highlight[];
+}
+
+export function listAllNotes(): Note[] {
+  if (!isSQLiteAvailable()) {
+    return [];
+  }
+
+  return getDb()
+    .select()
+    .from(notes)
+    .orderBy(desc(notes.createdAt))
+    .all() as Note[];
+}
+
+export function listFolderBookLinks(): Array<{
+  folderId: string;
+  bookId: string;
+}> {
+  if (!isSQLiteAvailable()) {
+    return [];
+  }
+
+  return getDb()
+    .select({
+      folderId: folderBooks.folderId,
+      bookId: folderBooks.bookId,
+    })
+    .from(folderBooks)
+    .all();
+}
+
 export function addHighlight({
   bookId,
   anchor,
@@ -848,9 +1127,11 @@ export function addHighlight({
     })
     .run();
 
-  return getDb().select().from(highlights).where(eq(highlights.id, id)).get() as
-    | Highlight
-    | undefined;
+  return getDb()
+    .select()
+    .from(highlights)
+    .where(eq(highlights.id, id))
+    .get() as Highlight | undefined;
 }
 
 export function addNote({
@@ -923,20 +1204,22 @@ export function deleteHighlight(highlightId: string) {
 }
 
 export function listKnowledgeItems(): KnowledgeItem[] {
-  const highlightItems = listHighlightsWithBooks().map<KnowledgeItem>((highlight) => ({
-    id: highlight.id,
-    type: "highlight",
-    bookId: highlight.bookId,
-    bookTitle: highlight.bookTitle,
-    text: highlight.text,
-    color: highlight.color,
-    note: highlight.note,
-    pageLabel: highlight.pageLabel,
-    chapterIndex: highlight.chapterIndex,
-    startOffset: highlight.startOffset,
-    endOffset: highlight.endOffset,
-    createdAt: highlight.createdAt,
-  }));
+  const highlightItems = listHighlightsWithBooks().map<KnowledgeItem>(
+    (highlight) => ({
+      id: highlight.id,
+      type: "highlight",
+      bookId: highlight.bookId,
+      bookTitle: highlight.bookTitle,
+      text: highlight.text,
+      color: highlight.color,
+      note: highlight.note,
+      pageLabel: highlight.pageLabel,
+      chapterIndex: highlight.chapterIndex,
+      startOffset: highlight.startOffset,
+      endOffset: highlight.endOffset,
+      createdAt: highlight.createdAt,
+    })
+  );
   const noteItems = listNotesWithBooks().map<KnowledgeItem>((note) => ({
     id: note.id,
     type: "note",
@@ -953,7 +1236,7 @@ export function listKnowledgeItems(): KnowledgeItem[] {
 
   return [...highlightItems, ...noteItems].sort(
     (first, second) =>
-      new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime(),
+      new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()
   );
 }
 
@@ -967,11 +1250,15 @@ export function getLocalCounts(): LocalCounts {
   }
 
   const sqlite = getSqlite();
-  const [bookCount] = sqlite.getAllSync<{ count: number }>("SELECT COUNT(*) as count FROM books");
-  const [highlightCount] = sqlite.getAllSync<{ count: number }>(
-    "SELECT COUNT(*) as count FROM highlights",
+  const [bookCount] = sqlite.getAllSync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM books"
   );
-  const [noteCount] = sqlite.getAllSync<{ count: number }>("SELECT COUNT(*) as count FROM notes");
+  const [highlightCount] = sqlite.getAllSync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM highlights"
+  );
+  const [noteCount] = sqlite.getAllSync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM notes"
+  );
 
   return {
     books: bookCount?.count ?? 0,
@@ -986,6 +1273,7 @@ export function clearDatabase() {
   }
 
   const db = getDb();
+  db.delete(cloudSyncSettings).run();
   db.delete(notificationSettings).run();
   db.delete(readerSettings).run();
   db.delete(folderBooks).run();
@@ -1013,8 +1301,8 @@ export function searchBooks(query: string): Book[] {
     .where(
       or(
         sql`lower(${books.title}) like ${normalized}`,
-        sql`lower(coalesce(${books.author}, '')) like ${normalized}`,
-      ),
+        sql`lower(coalesce(${books.author}, '')) like ${normalized}`
+      )
     )
     .all();
 }

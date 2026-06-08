@@ -6,17 +6,13 @@ import {
   Cloud,
   CloudOff,
   Crown,
-  DatabaseBackup,
   HardDrive,
   Lock,
   RefreshCw,
   RotateCcw,
-  ShieldCheck,
-  UploadCloud,
-  Wifi,
 } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Switch, View } from "react-native";
+import { Alert, Pressable, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
 import { Button } from "@/components/ui/button";
@@ -27,6 +23,12 @@ import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
+import { isPremiumAuthSession, useAuthStore } from "@/features/auth/auth-store";
+import {
+  fallbackProPlanConfig,
+  proPlanService,
+  type ProPlanConfig,
+} from "@/features/settings/pro-plan-service";
 import {
   canUseCloudBackup,
   getSyncDashboard,
@@ -171,23 +173,33 @@ function StorageUsage({ usage }: { usage: CloudStorageUsage }) {
   );
 }
 
-function Benefit({ children }: { children: string }) {
-  const { colors } = useAppTheme();
-
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[2] }}>
-      <CheckCircle2 color={colors.brand.emerald} size={16} strokeWidth={2.2} />
-      <AppText color="secondary" variant="footnote">
-        {children}
-      </AppText>
-    </View>
-  );
-}
-
-function PremiumUpsell({ onPreviewPremium }: { onPreviewPremium: () => void }) {
+function PremiumUpsell() {
   const router = useRouter();
   const responsive = useResponsive();
   const { colors } = useAppTheme();
+  const [config, setConfig] = useState<ProPlanConfig>(fallbackProPlanConfig);
+  const includedFeatures = config.features.filter((feature) => feature.included);
+
+  useEffect(() => {
+    let active = true;
+
+    proPlanService
+      .getProPlanConfig()
+      .then((nextConfig) => {
+        if (active) {
+          setConfig(nextConfig);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setConfig(fallbackProPlanConfig);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <View style={{ gap: responsive.isPhone ? spacing[4] : spacing[5] }}>
@@ -214,48 +226,147 @@ function PremiumUpsell({ onPreviewPremium }: { onPreviewPremium: () => void }) {
           </View>
           <View style={{ flex: 1, minWidth: 0, gap: spacing[1] }}>
             <AppText color="primary" variant={responsive.isPhone ? "bodyLarge" : "title3"} weight="semibold">
-              Back up your library and continue reading across devices.
+              Read better with {config.planName}
             </AppText>
             <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"}>
-              Cloud Backup is a Premium feature. Local reading stays free and offline.
+              {config.subtitle}
+            </AppText>
+          </View>
+        </View>
+
+        <View
+          style={{
+            flexDirection: responsive.isSmallPhone ? "column" : "row",
+            gap: spacing[3],
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+              minWidth: 0,
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+              backgroundColor: colors.surface.soft,
+              padding: spacing[3],
+            }}
+          >
+            <AppText color="primary" variant="footnote" weight="semibold">
+              Myanmar
+            </AppText>
+            <AppText color="secondary" variant="caption">
+              {config.prices.mm.display}
+            </AppText>
+          </View>
+          <View
+            style={{
+              flex: 1,
+              minWidth: 0,
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+              backgroundColor: colors.surface.soft,
+              padding: spacing[3],
+            }}
+          >
+            <AppText color="primary" variant="footnote" weight="semibold">
+              International
+            </AppText>
+            <AppText color="secondary" variant="caption">
+              {config.prices.international.display}
             </AppText>
           </View>
         </View>
 
         <View style={{ gap: spacing[2] }}>
-          <Benefit>EPUB cloud backup</Benefit>
-          <Benefit>Reading progress sync</Benefit>
-          <Benefit>Notes and highlights sync</Benefit>
-          <Benefit>Folder sync</Benefit>
-          <Benefit>Reader settings sync</Benefit>
-          <Benefit>Restore your library on a new device</Benefit>
-          <Benefit>1GB cloud backup storage</Benefit>
+          <AppText color="secondary" variant="footnote" weight="semibold">
+            Included with {config.planName}
+          </AppText>
+          <View
+            style={{
+              overflow: "hidden",
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+              backgroundColor: colors.surface.soft,
+            }}
+          >
+            {includedFeatures.map((feature, index) => {
+              const isLast = index === includedFeatures.length - 1;
+
+              return (
+                <View
+                  key={feature.id}
+                  style={{
+                    minHeight: responsive.isPhone ? 58 : 66,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: spacing[3],
+                    borderBottomWidth: isLast ? 0 : 1,
+                    borderBottomColor: colors.border.subtle,
+                    paddingHorizontal: responsive.isPhone ? spacing[3] : spacing[4],
+                    paddingVertical: spacing[3],
+                  }}
+                >
+                  <CheckCircle2
+                    color={colors.brand.emerald}
+                    size={responsive.isPhone ? 17 : 19}
+                    strokeWidth={2.3}
+                  />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <AppText color="primary" variant="footnote" weight="semibold" numberOfLines={1}>
+                      {feature.title}
+                    </AppText>
+                    <AppText color="secondary" variant="caption" numberOfLines={1}>
+                      {feature.description}
+                    </AppText>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         </View>
 
-        <View style={{ flexDirection: responsive.isSmallPhone ? "column" : "row", gap: spacing[3] }}>
+        <View
+          style={{
+            flexDirection: responsive.isSmallPhone ? "column" : "row",
+            gap: spacing[3],
+          }}
+        >
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <AppText color="primary" variant="footnote" weight="semibold">
+              AI Book Summary
+            </AppText>
+            <AppText color="secondary" variant="caption">
+              Monthly limit: {config.aiLimits.summariesPerMonth?.toLocaleString() ?? "50"} summaries / month
+            </AppText>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <AppText color="primary" variant="footnote" weight="semibold">
+              Discuss with AI
+            </AppText>
+            <AppText color="secondary" variant="caption">
+              Monthly limit: {config.aiLimits.chatMessagesPerMonth?.toLocaleString() ?? "300"} messages / month
+            </AppText>
+          </View>
+        </View>
+
+        <View style={{ flexDirection: responsive.isPhone ? "column" : "row", gap: spacing[3] }}>
           <Button
-            title="Upgrade to Premium"
+            title="Upgrade to Lumira Pro"
             icon={Crown}
             variant="secondary"
             onPress={() => router.push("/settings/premium")}
-            style={{ alignSelf: responsive.isSmallPhone ? "stretch" : "flex-start" }}
+            style={{ alignSelf: responsive.isPhone ? "stretch" : "flex-start" }}
           />
           <Button
-            title="Learn more"
+            title="View plan details"
             variant="ghost"
             onPress={() => router.push("/settings/premium")}
-            style={{ alignSelf: responsive.isSmallPhone ? "stretch" : "flex-start" }}
+            style={{ alignSelf: responsive.isPhone ? "stretch" : "flex-start" }}
           />
         </View>
       </Surface>
-
-      {__DEV__ ? (
-        <Button
-          title="Preview Premium Dashboard"
-          variant="ghost"
-          onPress={onPreviewPremium}
-        />
-      ) : null}
     </View>
   );
 }
@@ -326,15 +437,6 @@ function PremiumDashboard({
   const responsive = useResponsive();
   const { colors } = useAppTheme();
   const [syncing, setSyncing] = useState(false);
-  const [cloudBackupEnabled, setCloudBackupEnabled] = useState(
-    dashboard.cloudBackupEnabled,
-  );
-  const [autoSyncWifiOnly, setAutoSyncWifiOnly] = useState(
-    dashboard.autoSyncWifiOnly,
-  );
-  const [allowMobileDataSync, setAllowMobileDataSync] = useState(
-    dashboard.allowMobileDataSync,
-  );
   const stateCopy = syncStateCopy(dashboard.status, dashboard.lastSyncedAt);
   const StateIcon = stateCopy.icon;
 
@@ -395,95 +497,6 @@ function PremiumDashboard({
         ) : null}
       </Surface>
 
-      <Surface padded={false} style={{ overflow: "hidden" }}>
-        <View
-          style={{
-            minHeight: 72,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing[3],
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border.subtle,
-            paddingHorizontal: spacing[4],
-          }}
-        >
-          <DatabaseBackup color={colors.text.secondary} size={20} strokeWidth={2} />
-          <View style={{ flex: 1 }}>
-            <AppText color="primary" variant="body" weight="semibold">
-              Enable Cloud Backup
-            </AppText>
-            <AppText color="secondary" variant="caption">
-              Back up books, metadata, notes, folders, and settings.
-            </AppText>
-          </View>
-          <Switch
-            value={cloudBackupEnabled}
-            onValueChange={(value) => {
-              setCloudBackupEnabled(value);
-              onDashboardChange({
-                ...dashboard,
-                cloudBackupEnabled: value,
-                status: value ? "enabled" : "not-enabled",
-              });
-            }}
-            trackColor={{ false: colors.background.panelStrong, true: "rgba(139, 92, 246, 0.55)" }}
-            thumbColor={cloudBackupEnabled ? colors.text.primary : colors.text.secondary}
-          />
-        </View>
-        <View
-          style={{
-            minHeight: 72,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing[3],
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border.subtle,
-            paddingHorizontal: spacing[4],
-          }}
-        >
-          <Wifi color={colors.text.secondary} size={20} strokeWidth={2} />
-          <View style={{ flex: 1 }}>
-            <AppText color="primary" variant="body" weight="semibold">
-              Auto Sync on Wi-Fi
-            </AppText>
-            <AppText color="secondary" variant="caption">
-              Recommended default for large EPUB uploads.
-            </AppText>
-          </View>
-          <Switch
-            value={autoSyncWifiOnly}
-            onValueChange={setAutoSyncWifiOnly}
-            trackColor={{ false: colors.background.panelStrong, true: "rgba(139, 92, 246, 0.55)" }}
-            thumbColor={autoSyncWifiOnly ? colors.text.primary : colors.text.secondary}
-          />
-        </View>
-        <View
-          style={{
-            minHeight: 72,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing[3],
-            paddingHorizontal: spacing[4],
-          }}
-        >
-          <UploadCloud color={colors.text.secondary} size={20} strokeWidth={2} />
-          <View style={{ flex: 1 }}>
-            <AppText color="primary" variant="body" weight="semibold">
-              Auto Sync on Mobile Data
-            </AppText>
-            <AppText color="secondary" variant="caption">
-              Off by default to protect data plans.
-            </AppText>
-          </View>
-          <Switch
-            value={allowMobileDataSync}
-            onValueChange={setAllowMobileDataSync}
-            trackColor={{ false: colors.background.panelStrong, true: "rgba(139, 92, 246, 0.55)" }}
-            thumbColor={allowMobileDataSync ? colors.text.primary : colors.text.secondary}
-          />
-        </View>
-      </Surface>
-
       <View style={{ flexDirection: responsive.isSmallPhone ? "column" : "row", gap: spacing[3] }}>
         <Button
           title={syncing ? "Syncing..." : "Sync Now"}
@@ -524,17 +537,22 @@ export function SyncBackupScreen() {
   const responsive = useResponsive();
   const books = useBooksStore((state) => state.books);
   const knowledgeCount = useBooksStore((state) => state.knowledgeItems.length);
-  const [previewPremium, setPreviewPremium] = useState(false);
   const [dashboard, setDashboard] = useState<SyncDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const isPremiumUser = false;
-  const canUseBackup = canUseCloudBackup(isPremiumUser || previewPremium);
+  const [loading, setLoading] = useState(false);
+  const isPremiumUser = useAuthStore((state) => isPremiumAuthSession(state.session));
+  const canUseBackup = canUseCloudBackup(isPremiumUser);
   const context = useMemo(
     () => ({ books, knowledgeCount }),
     [books, knowledgeCount],
   );
 
   useEffect(() => {
+    if (!canUseBackup) {
+      setDashboard(null);
+      setLoading(false);
+      return;
+    }
+
     let active = true;
 
     setLoading(true);
@@ -558,14 +576,14 @@ export function SyncBackupScreen() {
     return () => {
       active = false;
     };
-  }, [context]);
+  }, [canUseBackup, context]);
+
+  if (!canUseBackup) {
+    return <PremiumUpsell />;
+  }
 
   if (loading) {
     return <EmptyState compact icon={Cloud} title="Checking backup status" body="Preparing local cloud backup controls..." />;
-  }
-
-  if (!canUseBackup) {
-    return <PremiumUpsell onPreviewPremium={() => setPreviewPremium(true)} />;
   }
 
   if (!dashboard) {

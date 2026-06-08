@@ -52,6 +52,7 @@ import { clearLumiraStorage, ensureLumiraStorage } from "@/utils/file-storage";
 import { nowIso } from "@/utils/date";
 import { defaultAppThemeId } from "@/design/app-themes";
 import { defaultReaderFontFamily } from "@/design/fonts";
+import { isPremiumAuthSession } from "@/features/auth/auth-store";
 
 type ImportState = "idle" | "loading" | "success" | "error";
 
@@ -75,7 +76,7 @@ type BooksStore = {
   refreshFolders: () => void;
   refreshKnowledge: () => void;
   importBook: () => Promise<ImportBookResult | null>;
-  createFolder: (name: string) => FolderWithCount;
+  createFolder: (input: string | { name: string; icon?: string; accentColor?: string }) => FolderWithCount;
   renameFolder: (folderId: string, name: string) => FolderWithCount;
   deleteFolder: (folderId: string) => void;
   getFolderBooks: (folderId: string) => Book[];
@@ -246,8 +247,8 @@ export const useBooksStore = create<BooksStore>((set, get) => ({
       return Promise.reject(error);
     }
   },
-  createFolder: (name: string) => {
-    const folder = createFolderRecord(name);
+  createFolder: (input) => {
+    const folder = createFolderRecord(input);
     set({ folders: listFolders() });
     return folder;
   },
@@ -322,7 +323,11 @@ export const useBooksStore = create<BooksStore>((set, get) => ({
     });
   },
   setReaderSettings: (settings: ReaderSettingsInput) => {
-    set({ readerSettings: updateReaderSettings(settings) });
+    set({
+      readerSettings: updateReaderSettings(settings, {
+        isPremiumUser: isPremiumAuthSession(),
+      }),
+    });
   },
   setNotificationSettings: async (settings: NotificationSettingsInput) => {
     const requestedSettings = updateNotificationSettings({

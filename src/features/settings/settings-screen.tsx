@@ -17,6 +17,7 @@ import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
+import { isPremiumAuthSession, useAuthStore } from "@/features/auth/auth-store";
 
 type SettingsRoute =
   | "/settings/profile"
@@ -33,7 +34,7 @@ type SettingItem = {
   accent?: boolean;
 };
 
-const accountItems: SettingItem[] = [
+const accountItemsBase: SettingItem[] = [
   { title: "Profile", value: "John Doe", icon: UserRound, href: "/settings/profile" },
   { title: "Upgrade to Pro", icon: Crown, href: "/settings/premium", accent: true },
 ];
@@ -210,15 +211,24 @@ export function SettingsScreen() {
   const responsive = useResponsive();
   const router = useRouter();
   const { colors } = useAppTheme();
+  const session = useAuthStore((state) => state.session);
   const appThemeId = useBooksStore((state) => state.readerSettings.appThemeId);
   const notificationSettings = useBooksStore(
     (state) => state.notificationSettings,
   );
   const proCardStacks = responsive.isSmallPhone;
+  const isPremiumUser = isPremiumAuthSession(session);
   const notificationsEnabled =
     notificationSettings.readingReminderEnabled ||
     notificationSettings.insightDigestEnabled ||
     notificationSettings.importCompleteEnabled;
+  const accountItems = accountItemsBase
+    .filter((item) => !isPremiumUser || item.href !== "/settings/premium")
+    .map((item) =>
+      item.href === "/settings/profile"
+        ? { ...item, value: session?.user.name ?? session?.user.email ?? item.value }
+        : item,
+    );
   const preferenceItems = preferenceItemsBase.map((item) =>
     item.title === "Appearance"
       ? { ...item, value: getAppTheme(appThemeId).name }
@@ -247,48 +257,50 @@ export function SettingsScreen() {
           Settings
         </AppText>
 
-        <View
-          style={{
-            flexDirection: proCardStacks ? "column" : "row",
-            alignItems: proCardStacks ? "flex-start" : "center",
-            gap: responsive.isPhone ? spacing[3] : spacing[5],
-            borderRadius: responsive.isPhone ? 16 : 18,
-            borderCurve: "continuous",
-            borderWidth: 1,
-            borderColor: "rgba(168, 85, 247, 0.42)",
-            backgroundColor: colors.background.panel,
-            padding: responsive.isPhone ? spacing[4] : spacing[6],
-          }}
-        >
+        {!isPremiumUser ? (
           <View
             style={{
-              width: responsive.isPhone ? 48 : 72,
-              height: responsive.isPhone ? 48 : 72,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: radii.pill,
-              backgroundColor: colors.brand.purple,
+              flexDirection: proCardStacks ? "column" : "row",
+              alignItems: proCardStacks ? "flex-start" : "center",
+              gap: responsive.isPhone ? spacing[3] : spacing[5],
+              borderRadius: responsive.isPhone ? 16 : 18,
+              borderCurve: "continuous",
+              borderWidth: 1,
+              borderColor: "rgba(168, 85, 247, 0.42)",
+              backgroundColor: colors.background.panel,
+              padding: responsive.isPhone ? spacing[4] : spacing[6],
             }}
           >
-            <Crown color="#FFFFFF" size={responsive.isPhone ? 24 : 36} strokeWidth={2} />
-          </View>
-          <View style={{ flex: 1, gap: spacing[3] }}>
-            <View>
-              <AppText color="primary" variant={responsive.isPhone ? "bodyLarge" : "title3"} weight="semibold">
-                Upgrade to Lumira Pro
-              </AppText>
-              <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"}>
-                Unlimited AI assistance, advanced analytics, and more
-              </AppText>
+            <View
+              style={{
+                width: responsive.isPhone ? 48 : 72,
+                height: responsive.isPhone ? 48 : 72,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: radii.pill,
+                backgroundColor: colors.brand.purple,
+              }}
+            >
+              <Crown color="#FFFFFF" size={responsive.isPhone ? 24 : 36} strokeWidth={2} />
             </View>
-            <Button
-              title="Learn More"
-              variant="secondary"
-              onPress={() => router.push("/settings/premium")}
-              style={responsive.isPhone ? { minHeight: 40, paddingHorizontal: spacing[3] } : undefined}
-            />
+            <View style={{ flex: 1, gap: spacing[3] }}>
+              <View>
+                <AppText color="primary" variant={responsive.isPhone ? "bodyLarge" : "title3"} weight="semibold">
+                  Upgrade to Lumira Pro
+                </AppText>
+                <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"}>
+                  Cloud backup, premium themes, and AI-powered reading tools
+                </AppText>
+              </View>
+              <Button
+                title="Learn More"
+                variant="secondary"
+                onPress={() => router.push("/settings/premium")}
+                style={responsive.isPhone ? { minHeight: 40, paddingHorizontal: spacing[3] } : undefined}
+              />
+            </View>
           </View>
-        </View>
+        ) : null}
 
         <SettingsGroup title="Account" items={accountItems} />
         <SettingsGroup title="Preferences" items={preferenceItems} />

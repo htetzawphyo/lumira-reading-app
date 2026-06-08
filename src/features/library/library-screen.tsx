@@ -75,7 +75,13 @@ const BookTile = memo(function BookTile({
         >
           {book.author ?? "Unknown Author"}
         </AppText>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[1] }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing[1],
+          }}
+        >
           <Clock3
             color={colors.text.secondary}
             size={compact ? 11 : 14}
@@ -159,12 +165,12 @@ export function LibraryScreen() {
 
       Alert.alert(
         result.duplicate ? "Already imported" : "Book imported",
-        result.book.title,
+        result.book.title
       );
     } catch (error) {
       Alert.alert(
         "Import failed",
-        error instanceof Error ? error.message : "Please try another EPUB file.",
+        error instanceof Error ? error.message : "Please try another EPUB file."
       );
     }
   }, [importBook]);
@@ -173,7 +179,7 @@ export function LibraryScreen() {
     (bookId: string) => {
       router.push(`/book/${bookId}`);
     },
-    [router],
+    [router]
   );
 
   const renderBook = useCallback<ListRenderItem<Book>>(
@@ -185,11 +191,16 @@ export function LibraryScreen() {
         onSelectBook={handleSelectBook}
       />
     ),
-    [compact, handleSelectBook, itemWidth],
+    [compact, handleSelectBook, itemWidth]
   );
 
   const header = (
-    <View style={{ gap: compact ? spacing[4] : spacing[5], marginBottom: responsive.rowGap }}>
+    <View
+      style={{
+        gap: compact ? spacing[4] : spacing[5],
+        marginBottom: responsive.rowGap,
+      }}
+    >
       <View
         style={{
           flexDirection: "row",
@@ -198,7 +209,12 @@ export function LibraryScreen() {
           gap: spacing[3],
         }}
       >
-        <AppText color="primary" variant="title1" weight="bold" numberOfLines={1}>
+        <AppText
+          color="primary"
+          variant={responsive.isPhone ? "title2" : "title1"}
+          weight="bold"
+          numberOfLines={1}
+        >
           Library
         </AppText>
         <Button
@@ -207,7 +223,10 @@ export function LibraryScreen() {
           variant="secondary"
           disabled={importState === "loading"}
           onPress={handleImportBook}
-          style={{ minHeight: responsive.touchTarget, paddingHorizontal: spacing[3] }}
+          style={{
+            minHeight: responsive.touchTarget - 3,
+            paddingHorizontal: spacing[3],
+          }}
         />
       </View>
 
@@ -218,9 +237,14 @@ export function LibraryScreen() {
         placeholder="Search books..."
       />
       {importState === "loading" ? (
-        <InlineStatus tone="loading" message="Copying EPUB into local storage..." />
+        <InlineStatus
+          tone="loading"
+          message="Copying EPUB into local storage..."
+        />
       ) : null}
-      {importError ? <InlineStatus tone="warning" message={importError} /> : null}
+      {importError ? (
+        <InlineStatus tone="warning" message={importError} />
+      ) : null}
 
       <View
         style={{
@@ -239,7 +263,9 @@ export function LibraryScreen() {
       keyExtractor={(book) => book.id}
       numColumns={responsive.libraryColumns}
       ListHeaderComponent={header}
-      ListEmptyComponent={<EmptyLibrary compact={compact} hasSearch={hasSearch} />}
+      ListEmptyComponent={
+        <EmptyLibrary compact={compact} hasSearch={hasSearch} />
+      }
       contentInsetAdjustmentBehavior="automatic"
       showsVerticalScrollIndicator={false}
       columnWrapperStyle={{

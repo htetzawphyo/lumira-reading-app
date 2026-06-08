@@ -72,6 +72,9 @@ export function RestoreBackupScreen() {
   const responsive = useResponsive();
   const books = useBooksStore((state) => state.books);
   const knowledgeCount = useBooksStore((state) => state.knowledgeItems.length);
+  const refreshBooks = useBooksStore((state) => state.refreshBooks);
+  const refreshFolders = useBooksStore((state) => state.refreshFolders);
+  const refreshKnowledge = useBooksStore((state) => state.refreshKnowledge);
   const [restoring, setRestoring] = useState(false);
   const [summary, setSummary] = useState<RestoreSummary | null>(null);
   const latestBookDate = useMemo(() => {
@@ -93,15 +96,22 @@ export function RestoreBackupScreen() {
 
     try {
       const result = await restoreBackup();
+      refreshBooks();
+      refreshFolders();
+      refreshKnowledge();
       setSummary(result);
       Alert.alert(
-        "Restore prepared",
-        "Backend restore is not connected yet. Existing local books were not changed.",
+        "Restore complete",
+        "Cloud books and reading data were merged into this device.",
       );
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Couldn't connect to cloud backup. Your local data is safe.";
       Alert.alert(
         "Restore unavailable",
-        "Couldn't connect to cloud backup. Your local data is safe.",
+        message,
       );
     } finally {
       setRestoring(false);
@@ -153,7 +163,7 @@ export function RestoreBackupScreen() {
               </AppText>
             </View>
           </View>
-          <SummaryRow label="Cloud backup status" value="Backend pending" />
+          <SummaryRow label="Cloud backup status" value="Connected" />
           <SummaryRow label="Backed up books" value={books.length} />
           <SummaryRow label="Notes and highlights" value={knowledgeCount} />
           <SummaryRow label="Last backup" value={latestBookDate ? formatRelativeTime(latestBookDate) : "Not available"} />
@@ -200,7 +210,7 @@ export function RestoreBackupScreen() {
               Backend integration point
             </AppText>
             <AppText color="secondary" variant="caption">
-              This screen is wired for a future cloud restore API. It does not mutate local data until that API exists.
+              Restore downloads backed-up EPUB files and merges reading data into this device.
             </AppText>
           </View>
           <HardDrive color="#8B5CF6" size={20} strokeWidth={2.1} />

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { BookOpen, Cloud, Music, ScrollText, Sparkles } from "lucide-react-native";
+import { BookOpen, Cloud, Lock, Music, ScrollText, Sparkles } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -22,9 +22,20 @@ import { Surface } from "@/components/ui/surface";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
+import { AiSummaryResultModal } from "@/features/ai/ai-summary-result-modal";
+import {
+  generateAiSummary,
+  getAiSummaryUsage,
+  listBookAiSummaries,
+  type AiSummary,
+  type AiSummaryUsage,
+} from "@/features/ai/ai-summary-service";
+import { htmlToSummaryText, truncateSummarySource } from "@/features/ai/summary-source";
+import { useAuthStore, isPremiumAuthSession } from "@/features/auth/auth-store";
 import { BookKnowledgeCard } from "@/features/book-detail/book-knowledge-card";
 import { useBooksStore } from "@/features/books/books-store";
-import type { KnowledgeItem } from "@/features/books/types";
+import type { Book, KnowledgeItem } from "@/features/books/types";
+import { loadEpubDocument } from "@/features/reader/epub-parser";
 import { formatRelativeTime } from "@/utils/date";
 
 type ReadingMode = "scroll" | "book" | "musician";
@@ -317,6 +328,211 @@ function BackupStatusRow({
         {status}
       </AppText>
     </Pressable>
+  );
+}
+
+function AiSummarySection({ book }: { book: Book }) {
+  const router = useRouter();
+  const responsive = useResponsive();
+  const { colors } = useAppTheme();
+  const session = useAuthStore((state) => state.session);
+  const isPremiumUser = isPremiumAuthSession(session);
+  const [usage, setUsage] = useState<AiSummaryUsage | null>(null);
+  const [summaries, setSummaries] = useState<AiSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeSummary, setActiveSummary] = useState<AiSummary | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!session) {
+      setUsage(null);
+      setSummaries([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      isPremiumUser ? getAiSummaryUsage() : Promise.resolve(null),
+      listBookAiSummaries(book.id),
+    ])
+      .then(([nextUsage, nextSummaries]) => {
+        if (cancelled) {
+          return;
+        }
+
+        setUsage(nextUsage);
+        setSummaries(nextSummaries);
+      })
+      .catch((requestError) => {
+        if (cancelled) {
+          return;
+        }
+
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "AI Summary is unavailable right now.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [book.id, isPremiumUser, session]);
+
+  async function summarizeCurrentChapter() {
+    if (!isPremiumUser || generating) {
+      return;
+    }
+
+    setGenerating(true);
+    setError(null);
+
+    try {
+      const epub = await loadEpubDocument(book.fileUri);
+      const chapterIndex = Math.min(
+        Math.max(book.currentChapterIndex ?? 0, 0),
+        Math.max(epub.chapters.length - 1, 0),
+      );
+      const chapter = await epub.loadChapter(chapterIndex);
+      const sourceText = truncateSummarySource(htmlToSummaryText(chapter.html));
+
+      if (!sourceText) {
+        throw new Error("This chapter does not contain enough text to summarize.");
+      }
+
+      const result = await generateAiSummary({
+        bookId: book.id,
+        scope: "CHAPTER",
+        chapterIndex,
+        language: "AUTO",
+        sourceTitle: chapter.chapter.title,
+        sourceText,
+      });
+
+      setUsage(result.usage);
+      setSummaries((current) => {
+        const withoutDuplicate = current.filter(
+          (summary) => summary.id !== result.summary.id,
+        );
+        return [result.summary, ...withoutDuplicate];
+      });
+      setActiveSummary(result.summary);
+    } catch (summaryError) {
+      setError(
+        summaryError instanceof Error
+          ? summaryError.message
+          : "Could not generate summary.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  const remaining = usage
+    ? `${usage.remainingCount}/${usage.limitCount} left this month`
+    : "Premium feature";
+
+  return (
+    <>
+      <Surface tone="quiet" style={{ gap: spacing[4] }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: spacing[3],
+          }}
+        >
+          <View style={{ flex: 1, minWidth: 0, gap: spacing[1] }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[2] }}>
+              <Sparkles color={colors.brand.violet} size={18} strokeWidth={2.1} />
+              <AppText color="primary" variant="title3" weight="semibold">
+                AI Summary
+              </AppText>
+            </View>
+            <AppText color="secondary" variant="footnote">
+              {isPremiumUser
+                ? remaining
+                : "Chapter and selection summaries are available in Premium."}
+            </AppText>
+          </View>
+          {!isPremiumUser ? (
+            <Lock color={colors.text.tertiary} size={18} strokeWidth={2.1} />
+          ) : null}
+        </View>
+
+        {!isPremiumUser ? (
+          <Button
+            title="Upgrade to Lumira Pro"
+            variant="secondary"
+            onPress={() => router.push("/settings/premium")}
+            style={{ alignSelf: responsive.isPhone ? "stretch" : "flex-start" }}
+          />
+        ) : (
+          <Button
+            title={generating ? "Generating..." : "Summarize Current Chapter"}
+            variant="secondary"
+            disabled={generating || loading}
+            onPress={summarizeCurrentChapter}
+            style={{ alignSelf: responsive.isPhone ? "stretch" : "flex-start" }}
+          />
+        )}
+
+        {error ? (
+          <AppText color={colors.brand.amber} variant="footnote">
+            {error}
+          </AppText>
+        ) : null}
+
+        {summaries.length ? (
+          <View style={{ gap: spacing[2] }}>
+            {summaries.slice(0, 3).map((summary) => (
+              <Pressable
+                key={summary.id}
+                accessibilityRole="button"
+                onPress={() => setActiveSummary(summary)}
+                style={({ pressed }) => ({
+                  gap: spacing[1],
+                  borderRadius: radii.lg,
+                  borderWidth: 1,
+                  borderColor: colors.border.subtle,
+                  backgroundColor: colors.background.panel,
+                  padding: spacing[3],
+                  opacity: pressed ? 0.72 : 1,
+                })}
+              >
+                <AppText color="primary" variant="footnote" weight="semibold">
+                  {summary.title}
+                </AppText>
+                <AppText color="secondary" variant="caption" numberOfLines={2}>
+                  {summary.summaryText}
+                </AppText>
+              </Pressable>
+            ))}
+          </View>
+        ) : isPremiumUser && !loading ? (
+          <AppText color="tertiary" variant="footnote">
+            No AI summaries yet. Generate a chapter summary to save it here.
+          </AppText>
+        ) : null}
+      </Surface>
+
+      <AiSummaryResultModal
+        visible={Boolean(activeSummary)}
+        summary={activeSummary}
+        onClose={() => setActiveSummary(null)}
+      />
+    </>
   );
 }
 
@@ -705,6 +921,8 @@ export function BookDetailScreen() {
             </View>
           </Surface>
         </View>
+
+        <AiSummarySection book={book} />
 
         <View style={{ gap: spacing[4] }}>
           <View

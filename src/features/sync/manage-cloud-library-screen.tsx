@@ -4,7 +4,6 @@ import {
   BookOpen,
   Cloud,
   DownloadCloud,
-  Eye,
   Trash2,
 } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
@@ -23,6 +22,7 @@ import { useBooksStore } from "@/features/books/books-store";
 import {
   deleteCloudBook,
   listCloudBooks,
+  restoreCloudBook,
 } from "@/features/sync/cloud-backup-service";
 import type { CloudBookItem } from "@/features/sync/cloud-backup-types";
 import { formatRelativeTime } from "@/utils/date";
@@ -50,9 +50,36 @@ function statusLabel(status: CloudBookItem["backupStatus"]) {
   }
 }
 
-function CloudBookRow({ item }: { item: CloudBookItem }) {
+function CloudBookRow({
+  item,
+  onChanged,
+}: {
+  item: CloudBookItem;
+  onChanged: () => void;
+}) {
   const responsive = useResponsive();
   const { colors } = useAppTheme();
+  const [busyAction, setBusyAction] = useState<"restore" | "remove" | null>(null);
+  const canRestore = item.backupStatus === "cloud-only";
+
+  async function handleRestore() {
+    if (!canRestore || busyAction) {
+      return;
+    }
+
+    setBusyAction("restore");
+
+    try {
+      const result = await restoreCloudBook(item.id);
+      Alert.alert(result.ok ? "Book restored" : "Restore unavailable", result.message);
+
+      if (result.ok) {
+        onChanged();
+      }
+    } finally {
+      setBusyAction(null);
+    }
+  }
 
   function confirmDelete() {
     Alert.alert(
@@ -64,11 +91,24 @@ function CloudBookRow({ item }: { item: CloudBookItem }) {
           text: "Remove Backup",
           style: "destructive",
           onPress: async () => {
-            const result = await deleteCloudBook();
-            Alert.alert(result.ok ? "Backup removed" : "Cloud unavailable", result.message);
+            if (busyAction) {
+              return;
+            }
+
+            setBusyAction("remove");
+            const result = await deleteCloudBook(item.id);
+            setBusyAction(null);
+            Alert.alert(
+              result.ok ? "Backup removed" : "Cloud unavailable",
+              result.message
+            );
+
+            if (result.ok) {
+              onChanged();
+            }
           },
         },
-      ],
+      ]
     );
   }
 
@@ -90,14 +130,21 @@ function CloudBookRow({ item }: { item: CloudBookItem }) {
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: spacing[2] }}>
         <View>
-          <AppText color="primary" variant="body" weight="semibold" numberOfLines={2}>
+          <AppText
+            color="primary"
+            variant="body"
+            weight="semibold"
+            numberOfLines={2}
+          >
             {item.title}
           </AppText>
           <AppText color="secondary" variant="footnote" numberOfLines={1}>
             {item.author ?? "Unknown Author"}
           </AppText>
         </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing[2] }}>
+        <View
+          style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing[2] }}
+        >
           <View
             style={{
               borderRadius: radii.pill,
@@ -114,13 +161,34 @@ function CloudBookRow({ item }: { item: CloudBookItem }) {
             {formatFileSize(item.fileSizeBytes)}
           </AppText>
           <AppText color="tertiary" variant="caption">
-            {item.lastSyncedAt ? formatRelativeTime(item.lastSyncedAt) : "Not synced"}
+            {item.lastSyncedAt
+              ? formatRelativeTime(item.lastSyncedAt)
+              : "Not synced"}
           </AppText>
         </View>
-        <View style={{ flexDirection: responsive.isSmallPhone ? "column" : "row", gap: spacing[2] }}>
-          <Button title="Restore" icon={DownloadCloud} variant="ghost" onPress={() => Alert.alert("Restore book", "Single-book restore will connect to the future cloud API.")} style={{ minHeight: 34, paddingHorizontal: spacing[3] }} />
-          <Button title="Details" icon={Eye} variant="ghost" onPress={() => Alert.alert(item.title, "Cloud backup metadata will appear here when backend sync is connected.")} style={{ minHeight: 34, paddingHorizontal: spacing[3] }} />
-          <Button title="Remove" icon={Trash2} variant="ghost" onPress={confirmDelete} style={{ minHeight: 34, paddingHorizontal: spacing[3] }} />
+        <View
+          style={{
+            flexDirection: responsive.isSmallPhone ? "column" : "row",
+            gap: spacing[2],
+            flexWrap: "wrap",
+          }}
+        >
+          <Button
+            title={item.backupStatus === "backed-up" ? "Restored" : busyAction === "restore" ? "Restoring" : "Restore"}
+            icon={DownloadCloud}
+            variant="ghost"
+            disabled={!canRestore || Boolean(busyAction)}
+            onPress={handleRestore}
+            style={{ minHeight: 34, paddingHorizontal: spacing[3] }}
+          />
+          <Button
+            title={busyAction === "remove" ? "Removing" : "Remove"}
+            icon={Trash2}
+            variant="ghost"
+            disabled={Boolean(busyAction)}
+            onPress={confirmDelete}
+            style={{ minHeight: 34, paddingHorizontal: spacing[3] }}
+          />
         </View>
       </View>
     </Surface>
@@ -132,14 +200,16 @@ export function ManageCloudLibraryScreen() {
   const responsive = useResponsive();
   const books = useBooksStore((state) => state.books);
   const knowledgeCount = useBooksStore((state) => state.knowledgeItems.length);
+  const refreshBooks = useBooksStore((state) => state.refreshBooks);
+  const refreshKnowledge = useBooksStore((state) => state.refreshKnowledge);
   const [items, setItems] = useState<CloudBookItem[]>([]);
   const [loading, setLoading] = useState(true);
   const context = useMemo(
     () => ({ books, knowledgeCount }),
-    [books, knowledgeCount],
+    [books, knowledgeCount]
   );
 
-  useEffect(() => {
+  function reloadCloudBooks() {
     let active = true;
 
     setLoading(true);
@@ -163,7 +233,17 @@ export function ManageCloudLibraryScreen() {
     return () => {
       active = false;
     };
+  }
+
+  useEffect(() => {
+    return reloadCloudBooks();
   }, [context]);
+
+  function handleCloudItemChanged() {
+    refreshBooks();
+    refreshKnowledge();
+    reloadCloudBooks();
+  }
 
   return (
     <ScrollView
@@ -176,12 +256,21 @@ export function ManageCloudLibraryScreen() {
     >
       <View
         style={{
-          width: Math.min(responsive.pageWidth, responsive.isTablet ? 920 : responsive.maxContentWidth),
+          width: Math.min(
+            responsive.pageWidth,
+            responsive.isTablet ? 920 : responsive.maxContentWidth
+          ),
           alignSelf: "center",
           gap: responsive.isPhone ? spacing[5] : spacing[7],
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[3] }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: spacing[3],
+          }}
+        >
           <IconButton
             icon={ArrowLeft}
             label="Back to Sync and Backup"
@@ -189,10 +278,17 @@ export function ManageCloudLibraryScreen() {
             style={responsive.isPhone ? { width: 40, height: 40 } : undefined}
           />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <AppText color="primary" variant={responsive.isPhone ? "title2" : "title1"} weight="bold">
+            <AppText
+              color="primary"
+              variant={responsive.isPhone ? "title2" : "title1"}
+              weight="bold"
+            >
               Manage Cloud Library
             </AppText>
-            <AppText color="secondary" variant={responsive.isPhone ? "footnote" : "body"}>
+            <AppText
+              color="secondary"
+              variant={responsive.isPhone ? "footnote" : "body"}
+            >
               Review cloud backups without changing local books.
             </AppText>
           </View>
@@ -205,17 +301,27 @@ export function ManageCloudLibraryScreen() {
               Local books are safe
             </AppText>
             <AppText color="secondary" variant="caption">
-              Deleting a cloud backup does not delete the EPUB stored on this device.
+              Deleting a cloud backup does not delete the EPUB stored on this
+              device.
             </AppText>
           </View>
         </Surface>
 
         {loading ? (
-          <EmptyState compact icon={Cloud} title="Loading cloud library" body="Checking future cloud backup records..." />
+          <EmptyState
+            compact
+            icon={Cloud}
+            title="Loading cloud library"
+            body="Checking future cloud backup records..."
+          />
         ) : items.length > 0 ? (
           <View style={{ gap: spacing[3] }}>
             {items.map((item) => (
-              <CloudBookRow key={item.id} item={item} />
+              <CloudBookRow
+                key={item.id}
+                item={item}
+                onChanged={handleCloudItemChanged}
+              />
             ))}
           </View>
         ) : (

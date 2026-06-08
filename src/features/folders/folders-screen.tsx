@@ -1,81 +1,84 @@
 import { useRouter } from "expo-router";
-import { ChevronRight, Folder, FolderPlus, Plus } from "lucide-react-native";
+import {
+  ArrowLeft,
+  BookOpen,
+  Bookmark,
+  FileText,
+  EllipsisVertical,
+  Folder,
+  FolderPlus,
+  Plus,
+  Star,
+} from "lucide-react-native";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Surface } from "@/components/ui/surface";
+import { SearchField } from "@/components/ui/search-field";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
 import type { FolderWithCount } from "@/features/books/types";
 import { FolderNameModal } from "@/features/folders/folder-name-modal";
-import { formatRelativeTime } from "@/utils/date";
 
-function FolderCard({
+const folderIcons = {
+  folder: Folder,
+  book: BookOpen,
+  bookmark: Bookmark,
+  file: FileText,
+  star: Star,
+} as const;
+
+function getFolderIcon(icon: string) {
+  return folderIcons[icon as keyof typeof folderIcons] ?? Folder;
+}
+
+function IconButton({
+  label,
+  onPress,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 42,
+        height: 42,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: radii.pill,
+        opacity: pressed ? 0.68 : 1,
+      })}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+function FolderGridCard({
   folder,
   width,
   onPress,
+  onMore,
 }: {
   folder: FolderWithCount;
-  width: number | "100%";
+  width: number;
   onPress: (folderId: string) => void;
+  onMore: (folder: FolderWithCount) => void;
 }) {
   const { colors } = useAppTheme();
   const responsive = useResponsive();
-  const compact = responsive.isPhone;
-
-  if (compact) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${folder.name}`}
-        onPress={() => onPress(folder.id)}
-        style={({ pressed }) => ({
-          width,
-          opacity: pressed ? 0.72 : 1,
-        })}
-      >
-        <View
-          style={{
-            minHeight: 66,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: spacing[3],
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border.subtle,
-            paddingVertical: spacing[2],
-          }}
-        >
-          <View
-            style={{
-              width: 38,
-              height: 38,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: radii.md,
-              backgroundColor: colors.surface.soft,
-            }}
-          >
-            <Folder color={colors.brand.violet} size={21} strokeWidth={2.1} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-            <AppText color="primary" variant="body" weight="semibold" numberOfLines={1}>
-              {folder.name}
-            </AppText>
-            <AppText color="secondary" variant="caption" numberOfLines={1}>
-              {folder.bookCount} {folder.bookCount === 1 ? "book" : "books"} · Updated{" "}
-              {formatRelativeTime(folder.updatedAt)}
-            </AppText>
-          </View>
-          <ChevronRight color={colors.text.tertiary} size={19} strokeWidth={2} />
-        </View>
-      </Pressable>
-    );
-  }
+  const FolderIcon = getFolderIcon(folder.icon);
+  const accentColor = folder.accentColor || colors.brand.violet;
 
   return (
     <Pressable
@@ -84,46 +87,65 @@ function FolderCard({
       onPress={() => onPress(folder.id)}
       style={({ pressed }) => ({
         width,
-        opacity: pressed ? 0.78 : 1,
+        opacity: pressed ? 0.74 : 1,
       })}
     >
-      <Surface
-        tone="quiet"
+      <View
         style={{
-          minHeight: 138,
+          minHeight: responsive.isPhone ? 124 : 142,
           justifyContent: "space-between",
-          gap: spacing[4],
+          borderRadius: radii.lg,
+          borderWidth: 1,
+          borderColor: colors.border.default,
+          backgroundColor: colors.background.elevated,
+          padding: responsive.isPhone ? spacing[3] : spacing[4],
         }}
       >
         <View
           style={{
-            width: 46,
-            height: 46,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: radii.lg,
-            backgroundColor: colors.surface.soft,
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: spacing[2],
           }}
         >
-          <Folder color={colors.brand.violet} size={24} strokeWidth={2.1} />
+          <FolderIcon
+            color={accentColor}
+            size={responsive.isPhone ? 27 : 31}
+            strokeWidth={2.1}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`More options for ${folder.name}`}
+            onPress={(event) => {
+              event.stopPropagation();
+              onMore(folder);
+            }}
+            hitSlop={10}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <EllipsisVertical
+              color={colors.text.tertiary}
+              size={20}
+              strokeWidth={2.2}
+            />
+          </Pressable>
         </View>
+
         <View style={{ gap: spacing[1] }}>
           <AppText
             color="primary"
-            variant="bodyLarge"
+            variant={responsive.isPhone ? "body" : "bodyLarge"}
             weight="semibold"
             numberOfLines={2}
           >
             {folder.name}
           </AppText>
-          <AppText color="secondary" variant="footnote">
-            {folder.bookCount} {folder.bookCount === 1 ? "book" : "books"}
-          </AppText>
-          <AppText color="tertiary" variant="caption">
-            Updated {formatRelativeTime(folder.updatedAt)}
+          <AppText color="secondary" variant="footnote" numberOfLines={1}>
+            {folder.bookCount} {folder.bookCount === 1 ? "item" : "items"}
           </AppText>
         </View>
-      </Surface>
+      </View>
     </Pressable>
   );
 }
@@ -135,17 +157,25 @@ export function FoldersScreen() {
   const folders = useBooksStore((state) => state.folders);
   const createFolder = useBooksStore((state) => state.createFolder);
   const [modalVisible, setModalVisible] = useState(false);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const columns = responsive.isPhone ? 1 : responsive.useSidebar ? 3 : 2;
+  const columns = responsive.isPhone ? 2 : responsive.isTabletLandscape ? 4 : 3;
   const gap = responsive.isPhone ? spacing[3] : spacing[4];
-  const cardWidth = useMemo<number | "100%">(() => {
-    if (responsive.isPhone) {
-      return "100%";
+  const cardWidth = useMemo(() => {
+    return (responsive.pageWidth - gap * (columns - 1)) / columns;
+  }, [columns, gap, responsive.pageWidth]);
+  const visibleFolders = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return folders;
     }
 
-    return (responsive.pageWidth - gap * (columns - 1)) / columns;
-  }, [columns, gap, responsive.isPhone, responsive.pageWidth]);
+    return folders.filter((folder) =>
+      folder.name.toLowerCase().includes(normalizedQuery)
+    );
+  }, [folders, query]);
 
   function openCreateFolder() {
     setError(null);
@@ -161,12 +191,19 @@ export function FoldersScreen() {
     setError(null);
   }
 
-  function handleCreateFolder(name: string) {
+  function handleCreateFolder(
+    name: string,
+    options?: { icon: string; accentColor: string }
+  ) {
     setSaving(true);
     setError(null);
 
     try {
-      const folder = createFolder(name);
+      const folder = createFolder({
+        name,
+        icon: options?.icon,
+        accentColor: options?.accentColor,
+      });
       setModalVisible(false);
       router.push(`/folders/${folder.id}`);
     } catch (createError) {
@@ -181,16 +218,27 @@ export function FoldersScreen() {
     }
   }
 
+  function openFolderOptions(folder: FolderWithCount) {
+    Alert.alert(
+      folder.name,
+      `${folder.bookCount} item${folder.bookCount === 1 ? "" : "s"}`,
+      [
+        { text: "Open", onPress: () => router.push(`/folders/${folder.id}`) },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  }
+
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           width: responsive.pageWidth,
           alignSelf: "center",
-          paddingTop: responsive.isPhone ? spacing[5] : responsive.gutter,
-          paddingBottom: responsive.bottomInsetPadding,
+          paddingTop: responsive.isPhone ? spacing[4] : responsive.gutter,
+          paddingBottom: responsive.bottomInsetPadding + spacing[8],
           gap: responsive.isPhone ? spacing[4] : spacing[6],
         }}
       >
@@ -198,69 +246,131 @@ export function FoldersScreen() {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "space-between",
-            gap: spacing[3],
+            gap: spacing[2],
           }}
         >
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <AppText
-              color="primary"
-              variant={responsive.isPhone ? "title2" : "title1"}
-              weight="bold"
-              numberOfLines={1}
-            >
-              Folders
-            </AppText>
-            <AppText
-              color="secondary"
-              variant={responsive.isPhone ? "footnote" : "body"}
-              numberOfLines={2}
-            >
-              Organize imported EPUBs without moving local files.
-            </AppText>
-          </View>
-          <Button
-            title="Create"
-            icon={Plus}
-            variant="secondary"
-            onPress={openCreateFolder}
-            style={{
-              minHeight: responsive.touchTarget,
-              paddingHorizontal: responsive.isPhone ? spacing[3] : spacing[4],
-            }}
-          />
+          {/* <IconButton
+            label="Back to Library"
+            onPress={() => router.push("/library")}
+          >
+            <ArrowLeft
+              color={colors.brand.violet}
+              size={24}
+              strokeWidth={2.1}
+            />
+          </IconButton> */}
+          <AppText
+            color="primary"
+            variant={responsive.isPhone ? "title2" : "title1"}
+            weight="bold"
+            numberOfLines={1}
+            style={{ flex: 1 }}
+          >
+            Folders
+          </AppText>
+          <IconButton
+            label="Folder options"
+            onPress={() =>
+              Alert.alert("Folders", "Folder tools are coming soon.")
+            }
+          >
+            <EllipsisVertical
+              color={colors.brand.violet}
+              size={23}
+              strokeWidth={2.2}
+            />
+          </IconButton>
         </View>
 
-        <View style={{ height: 1, backgroundColor: colors.border.subtle }} />
-
-        {folders.length > 0 ? (
+        {visibleFolders.length > 0 ? (
           <View
             style={{
               flexDirection: "row",
               flexWrap: "wrap",
-              gap: responsive.isPhone ? 0 : gap,
-              borderTopWidth: responsive.isPhone ? 1 : 0,
-              borderTopColor: colors.border.subtle,
+              gap,
             }}
           >
-            {folders.map((folder) => (
-              <FolderCard
+            {visibleFolders.map((folder) => (
+              <FolderGridCard
                 key={folder.id}
                 folder={folder}
                 width={cardWidth}
                 onPress={(folderId) => router.push(`/folders/${folderId}`)}
+                onMore={openFolderOptions}
               />
             ))}
           </View>
         ) : (
           <EmptyState
-            icon={FolderPlus}
-            title="No folders yet"
-            body="Create a folder to group books for a project, class, or reading mood."
             compact={responsive.isPhone}
+            icon={FolderPlus}
+            title={query.trim() ? "No folders found" : "No folders yet"}
+            body={
+              query.trim()
+                ? "Try another folder name or create a new one."
+                : "Create a folder to organize books by project, class, or reading mood."
+            }
           />
         )}
+
+        {!query.trim() && visibleFolders.length > 0 ? (
+          <View
+            style={{
+              minHeight: responsive.isPhone ? 128 : 150,
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+              backgroundColor: colors.surface.soft,
+              padding: spacing[5],
+            }}
+          >
+            <AppText
+              color="secondary"
+              variant={responsive.isPhone ? "body" : "bodyLarge"}
+              weight="semibold"
+              align="center"
+            >
+              Your sanctuary awaits.
+            </AppText>
+            <AppText
+              color="tertiary"
+              variant={responsive.isPhone ? "footnote" : "body"}
+              align="center"
+              style={{ maxWidth: 340 }}
+            >
+              Keep your library tidy for a clearer mind.
+            </AppText>
+          </View>
+        ) : null}
       </ScrollView>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Create folder"
+        onPress={openCreateFolder}
+        style={({ pressed }) => ({
+          position: "absolute",
+          right: responsive.gutter,
+          bottom: responsive.bottomInsetPadding - spacing[4],
+          width: responsive.isPhone ? 58 : 64,
+          height: responsive.isPhone ? 58 : 64,
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: radii.lg,
+          backgroundColor: colors.brand.violet,
+          opacity: pressed ? 0.76 : 1,
+          shadowColor: "#000000",
+          shadowOpacity: 0.22,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 10 },
+          elevation: 8,
+        })}
+      >
+        <Plus color="#FFFFFF" size={29} strokeWidth={2.4} />
+      </Pressable>
 
       <FolderNameModal
         visible={modalVisible}
@@ -270,6 +380,6 @@ export function FoldersScreen() {
         onClose={closeCreateFolder}
         onSubmit={handleCreateFolder}
       />
-    </>
+    </View>
   );
 }

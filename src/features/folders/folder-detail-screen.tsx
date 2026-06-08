@@ -1,12 +1,17 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+  ArrowLeft,
+  Bookmark,
   BookOpen,
-  ChevronRight,
   Check,
+  EllipsisVertical,
+  FileText,
   FolderOpen,
-  Pencil,
+  Grid2X2,
   Plus,
-  Trash2,
+  Search,
+  SlidersHorizontal,
+  Star,
 } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import {
@@ -19,7 +24,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BookCard } from "@/components/books/book-card";
 import { BookCover } from "@/components/books/book-cover";
 import { AppText } from "@/components/ui/app-text";
 import { Button } from "@/components/ui/button";
@@ -32,6 +36,18 @@ import { radii, spacing } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
 import type { Book } from "@/features/books/types";
 import { FolderNameModal } from "@/features/folders/folder-name-modal";
+
+const folderIcons = {
+  folder: FolderOpen,
+  book: BookOpen,
+  bookmark: Bookmark,
+  file: FileText,
+  star: Star,
+} as const;
+
+function getFolderIcon(icon: string) {
+  return folderIcons[icon as keyof typeof folderIcons] ?? FolderOpen;
+}
 import { formatRelativeTime } from "@/utils/date";
 
 function AddBooksModal({
@@ -281,67 +297,71 @@ function FolderBookRow({
   const { colors } = useAppTheme();
 
   return (
-    <View
-      style={{
-        minHeight: 70,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: spacing[3],
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border.subtle,
-        paddingVertical: spacing[2],
-      }}
-    >
+    <Surface tone="quiet" style={{ padding: spacing[2] }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Open ${book.title}`}
         onPress={() => onOpen(book)}
         style={({ pressed }) => ({
-          flex: 1,
-          minWidth: 0,
           flexDirection: "row",
           alignItems: "center",
           gap: spacing[3],
           opacity: pressed ? 0.72 : 1,
         })}
       >
-        <View style={{ width: 42 }}>
+        <View style={{ width: 68 }}>
           <BookCover uri={book.coverUri} accent={colors.brand.violet} compact />
         </View>
-        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: spacing[1] }}>
           <AppText
             color="primary"
-            variant="body"
+            variant="bodyLarge"
             weight="semibold"
             numberOfLines={1}
           >
             {book.title}
           </AppText>
-          <AppText color="secondary" variant="caption" numberOfLines={1}>
-            {book.author ?? "Unknown Author"} ·{" "}
-            {formatRelativeTime(book.lastOpenedAt ?? book.createdAt)}
+          <AppText color="secondary" variant="footnote" numberOfLines={1}>
+            {book.author ?? "Unknown Author"}
           </AppText>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[2] }}>
+            <View
+              style={{
+                borderRadius: radii.sm,
+                backgroundColor: colors.surface.soft,
+                paddingHorizontal: spacing[2],
+                paddingVertical: 2,
+              }}
+            >
+              <AppText color="secondary" variant="caption" weight="bold">
+                EPUB
+              </AppText>
+            </View>
+            <AppText color="tertiary" variant="caption" numberOfLines={1}>
+              {formatRelativeTime(book.lastOpenedAt ?? book.createdAt)}
+            </AppText>
+          </View>
         </View>
-        <ChevronRight color={colors.text.tertiary} size={18} strokeWidth={2} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Remove ${book.title} from folder`}
         onPress={() => onRemove(book.id)}
         style={({ pressed }) => ({
-          minHeight: 36,
+          position: "absolute",
+          right: spacing[2],
+          top: spacing[2],
+          width: 36,
+          height: 36,
           alignItems: "center",
           justifyContent: "center",
           borderRadius: radii.pill,
           opacity: pressed ? 0.72 : 1,
-          paddingHorizontal: spacing[2],
         })}
       >
-        <AppText color="tertiary" variant="caption" weight="semibold">
-          Remove
-        </AppText>
+        <EllipsisVertical color={colors.text.tertiary} size={20} strokeWidth={2.1} />
       </Pressable>
-    </View>
+    </Surface>
   );
 }
 
@@ -379,8 +399,24 @@ export function FolderDetailScreen() {
   const [renameSaving, setRenameSaving] = useState(false);
   const [addVisible, setAddVisible] = useState(false);
   const [addQuery, setAddQuery] = useState("");
+  const [bookQuery, setBookQuery] = useState("");
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
   const [addSaving, setAddSaving] = useState(false);
+  const visibleFolderBooks = useMemo(() => {
+    const normalizedQuery = bookQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return folderBooks;
+    }
+
+    return folderBooks.filter((book) => {
+      const author = book.author ?? "Unknown Author";
+      return (
+        book.title.toLowerCase().includes(normalizedQuery) ||
+        author.toLowerCase().includes(normalizedQuery)
+      );
+    });
+  }, [bookQuery, folderBooks]);
 
   if (!folder || !folderId) {
     return (
@@ -407,6 +443,8 @@ export function FolderDetailScreen() {
     );
   }
   const activeFolder = folder;
+  const ActiveFolderIcon = getFolderIcon(activeFolder.icon);
+  const activeFolderAccent = activeFolder.accentColor || colors.brand.violet;
 
   function handleRename(name: string) {
     if (!folderId) {
@@ -498,7 +536,7 @@ export function FolderDetailScreen() {
   }
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -513,161 +551,183 @@ export function FolderDetailScreen() {
           gap: responsive.isPhone ? spacing[4] : spacing[6],
         }}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to folders"
-          onPress={() => router.push("/folders")}
-          style={({ pressed }) => ({
-            alignSelf: "flex-start",
-            opacity: pressed ? 0.72 : 1,
-          })}
-        >
-          <AppText color="secondary" variant="footnote" weight="semibold">
-            Folders
-          </AppText>
-        </Pressable>
-
-        <Surface
-          tone="quiet"
-          style={{
-            gap: responsive.isPhone ? spacing[3] : spacing[4],
-            padding: responsive.isPhone ? spacing[4] : spacing[5],
-          }}
-        >
-          <View
-            style={{
-              gap: spacing[1],
-            }}
-          >
-            <View style={{ minWidth: 0, gap: spacing[1] }}>
-              <AppText
-                color="primary"
-                variant={responsive.isPhone ? "title2" : "title1"}
-                weight="bold"
-                numberOfLines={1}
-                style={{ lineHeight: 38 }}
-              >
-                {activeFolder.name}
-              </AppText>
-              <AppText
-                color="secondary"
-                variant={responsive.isPhone ? "footnote" : "body"}
-              >
-                {activeFolder.bookCount}{" "}
-                {activeFolder.bookCount === 1 ? "book" : "books"}
-              </AppText>
-            </View>
-          </View>
-
-          <View style={{ height: 1, backgroundColor: colors.border.subtle }} />
-
+        <View style={{ gap: spacing[4] }}>
           <View
             style={{
               flexDirection: "row",
+              alignItems: "center",
               gap: spacing[2],
             }}
           >
-            <Button
-              title="Delete"
-              icon={Trash2}
-              variant="ghost"
-              onPress={handleDeleteFolder}
-              style={{
-                flexShrink: 0,
-                minHeight: responsive.isPhone ? 38 : 42,
-                paddingHorizontal: responsive.isPhone ? spacing[2] : spacing[3],
-              }}
-            />
-            <Button
-              title="Rename"
-              icon={Pencil}
-              variant="ghost"
-              onPress={() => {
-                setRenameError(null);
-                setRenameVisible(true);
-              }}
-              style={{
-                flexShrink: 0,
-                minHeight: responsive.isPhone ? 38 : 42,
-                paddingHorizontal: responsive.isPhone ? spacing[2] : spacing[3],
-              }}
-            />
-            <Button
-              title="Add Books"
-              icon={Plus}
-              variant="secondary"
-              onPress={openAddBooks}
-              style={{
-                flexShrink: 0,
-                minHeight: responsive.isPhone ? 38 : 42,
-                paddingHorizontal: responsive.isPhone ? spacing[2] : spacing[3],
-              }}
-            />
-          </View>
-        </Surface>
-
-        <View style={{ gap: responsive.isPhone ? spacing[2] : spacing[3] }}>
-          <AppText
-            color="primary"
-            variant={responsive.isPhone ? "bodyLarge" : "title3"}
-            weight="semibold"
-          >
-            Books
-          </AppText>
-          {folderBooks.length > 0 ? (
-            responsive.isPhone ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back to folders"
+              onPress={() => router.push("/folders")}
+              style={({ pressed }) => ({
+                width: 42,
+                height: 42,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: radii.pill,
+                opacity: pressed ? 0.72 : 1,
+              })}
+            >
+              <ArrowLeft color={colors.brand.violet} size={24} strokeWidth={2.1} />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <AppText color="secondary" variant="caption" numberOfLines={1}>
+                Library &gt; {activeFolder.name}
+              </AppText>
               <View
                 style={{
-                  borderTopWidth: 1,
-                  borderTopColor: colors.border.subtle,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing[2],
                 }}
               >
-                {folderBooks.map((book) => (
-                  <FolderBookRow
-                    key={book.id}
-                    book={book}
-                    onOpen={(selectedBook) =>
-                      router.push(`/book/${selectedBook.id}`)
-                    }
-                    onRemove={handleRemoveBook}
-                  />
-                ))}
+                <ActiveFolderIcon
+                  color={activeFolderAccent}
+                  size={responsive.isPhone ? 21 : 25}
+                  strokeWidth={2.1}
+                />
+                <AppText
+                  color="primary"
+                  variant={responsive.isPhone ? "title2" : "title1"}
+                  weight="bold"
+                  numberOfLines={1}
+                  style={{ flex: 1, minWidth: 0 }}
+                >
+                  {activeFolder.name}
+                </AppText>
               </View>
-            ) : (
-              <View style={{ gap: spacing[3] }}>
-                {folderBooks.map((book) => (
-                  <View key={book.id} style={{ gap: spacing[2] }}>
-                    <BookCard
-                      book={book}
-                      layout="list"
-                      onPress={(selectedBook) =>
-                        router.push(`/book/${selectedBook.id}`)
-                      }
-                    />
-                    <Button
-                      title="Remove from folder"
-                      variant="ghost"
-                      onPress={() => handleRemoveBook(book.id)}
-                      style={{
-                        alignSelf: "flex-end",
-                        minHeight: 34,
-                        paddingHorizontal: spacing[3],
-                      }}
-                    />
-                  </View>
-                ))}
-              </View>
-            )
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Search in folder"
+              onPress={() => undefined}
+              style={({ pressed }) => ({
+                width: 42,
+                height: 42,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: radii.pill,
+                opacity: pressed ? 0.72 : 1,
+              })}
+            >
+              <Search color={colors.brand.violet} size={23} strokeWidth={2.1} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Folder options"
+              onPress={() =>
+                Alert.alert(activeFolder.name, "Folder actions", [
+                  {
+                    text: "Rename",
+                    onPress: () => {
+                      setRenameError(null);
+                      setRenameVisible(true);
+                    },
+                  },
+                  { text: "Delete", style: "destructive", onPress: handleDeleteFolder },
+                  { text: "Cancel", style: "cancel" },
+                ])
+              }
+              style={({ pressed }) => ({
+                width: 42,
+                height: 42,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: radii.pill,
+                opacity: pressed ? 0.72 : 1,
+              })}
+            >
+              <EllipsisVertical color={colors.brand.violet} size={23} strokeWidth={2.2} />
+            </Pressable>
+          </View>
+          <SearchField
+            compact={responsive.isPhone}
+            value={bookQuery}
+            onChangeText={setBookQuery}
+            placeholder={`Search in ${activeFolder.name}`}
+          />
+        </View>
+
+        <View style={{ gap: responsive.isPhone ? spacing[2] : spacing[3] }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: spacing[3],
+            }}
+          >
+            <AppText
+              color="primary"
+              variant={responsive.isPhone ? "bodyLarge" : "title3"}
+              weight="semibold"
+            >
+              Books
+            </AppText>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing[3] }}>
+              <SlidersHorizontal color={colors.text.secondary} size={22} strokeWidth={2.1} />
+              <Grid2X2 color={colors.text.secondary} size={22} strokeWidth={2.1} />
+            </View>
+          </View>
+
+          {visibleFolderBooks.length > 0 ? (
+            <View style={{ gap: spacing[3] }}>
+              {visibleFolderBooks.map((book) => (
+                <FolderBookRow
+                  key={book.id}
+                  book={book}
+                  onOpen={(selectedBook) => router.push(`/book/${selectedBook.id}`)}
+                  onRemove={(bookId) =>
+                    Alert.alert("Remove from folder?", "The book stays in your Library.", [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Remove",
+                        style: "destructive",
+                        onPress: () => handleRemoveBook(bookId),
+                      },
+                    ])
+                  }
+                />
+              ))}
+            </View>
           ) : (
             <EmptyState
               compact={responsive.isPhone}
               icon={BookOpen}
-              title="No books in this folder"
-              body="Add books from your local Library. EPUB files will stay where they are."
+              title={folderBooks.length === 0 ? "No books in this folder" : "No matches"}
+              body={
+                folderBooks.length === 0
+                  ? "Add books from your local Library. EPUB files will stay where they are."
+                  : "Try another title or author."
+              }
             />
           )}
         </View>
       </ScrollView>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add books"
+        onPress={openAddBooks}
+        style={({ pressed }) => ({
+          position: "absolute",
+          right: responsive.gutter,
+          bottom: responsive.bottomInsetPadding - spacing[4],
+          width: responsive.isPhone ? 58 : 64,
+          height: responsive.isPhone ? 58 : 64,
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: radii.lg,
+          backgroundColor: colors.brand.violet,
+          opacity: pressed ? 0.76 : 1,
+        })}
+      >
+        <Plus color="#FFFFFF" size={29} strokeWidth={2.4} />
+      </Pressable>
 
       <FolderNameModal
         visible={renameVisible}
@@ -700,6 +760,6 @@ export function FolderDetailScreen() {
         }}
         onSubmit={handleAddBooks}
       />
-    </>
+    </View>
   );
 }

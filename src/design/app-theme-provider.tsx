@@ -12,6 +12,7 @@ import {
 } from "@/design/app-themes";
 import { colors } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
+import { isPremiumAuthSession, useAuthStore } from "@/features/auth/auth-store";
 
 type AppThemeContextValue = {
   theme: AppTheme;
@@ -37,16 +38,17 @@ function applyAppThemeColors(themeColors: AppThemeColors) {
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const appThemeId = useBooksStore(
-    (state) => state.readerSettings.appThemeId ?? defaultAppThemeId,
+    (state) => state.readerSettings.appThemeId ?? defaultAppThemeId
   );
   const setReaderSettings = useBooksStore((state) => state.setReaderSettings);
-  const theme = getAppTheme(appThemeId);
+  const isPremiumUser = useAuthStore((state) => isPremiumAuthSession(state.session));
+  const theme = getAppTheme(appThemeId, isPremiumUser);
 
   applyAppThemeColors(theme.colors);
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(theme.colors.background.base).catch(
-      () => undefined,
+      () => undefined
     );
   }, [theme.colors.background.base]);
 
@@ -55,12 +57,12 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
       theme,
       colors: theme.colors,
       setAppThemeId: (themeId) => {
-        if (canUseAppTheme(themeId, false)) {
+        if (canUseAppTheme(themeId, isPremiumUser)) {
           setReaderSettings({ appThemeId: themeId });
         }
       },
     }),
-    [setReaderSettings, theme],
+    [isPremiumUser, setReaderSettings, theme]
   );
 
   return (

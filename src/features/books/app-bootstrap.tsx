@@ -6,6 +6,9 @@ import { AppText } from "@/components/ui/app-text";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { spacing } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
+import { refreshCurrentUser } from "@/features/auth/auth-service";
+import { useAuthStore } from "@/features/auth/auth-store";
+import { runAutoSyncIfNeeded } from "@/features/sync/cloud-backup-service";
 
 type AppBootstrapProps = {
   children: ReactNode;
@@ -16,10 +19,19 @@ export function AppBootstrap({ children }: AppBootstrapProps) {
   const dbReady = useBooksStore((state) => state.dbReady);
   const dbError = useBooksStore((state) => state.dbError);
   const initialize = useBooksStore((state) => state.initialize);
+  const hydrateAuth = useAuthStore((state) => state.hydrate);
 
   useEffect(() => {
     initialize();
-  }, [initialize]);
+    hydrateAuth()
+      .then((session) => {
+        if (session) {
+          return refreshCurrentUser().then(() => runAutoSyncIfNeeded());
+        }
+        return null;
+      })
+      .catch(() => undefined);
+  }, [hydrateAuth, initialize]);
 
   if (dbError) {
     return (

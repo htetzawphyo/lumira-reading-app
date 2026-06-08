@@ -32,7 +32,10 @@
       "expo-sqlite",
       "expo-font",
       "expo-asset",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-sharing"
     ],
     "extra": {
       "router": {},

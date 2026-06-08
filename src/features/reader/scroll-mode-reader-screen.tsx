@@ -1,7 +1,7 @@
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { setStatusBarHidden, StatusBar } from "expo-status-bar";
-import { AlertCircle, ChevronLeft, List, Lock, Settings2 } from "lucide-react-native";
+import { AlertCircle, ChevronLeft, List, Lock, Settings2, Sparkles } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -28,7 +28,14 @@ import {
   getReaderFontCss,
 } from "@/design/fonts";
 import { colors, radii, spacing } from "@/design/tokens";
+import { AiSummaryResultModal } from "@/features/ai/ai-summary-result-modal";
+import {
+  generateAiSummary,
+  type AiSummary,
+} from "@/features/ai/ai-summary-service";
+import { htmlToSummaryText, truncateSummarySource } from "@/features/ai/summary-source";
 import { useBooksStore } from "@/features/books/books-store";
+import { isPremiumAuthSession, useAuthStore } from "@/features/auth/auth-store";
 import type { ReaderSettings, ReaderTheme } from "@/features/books/types";
 import { ChapterListPanel } from "@/features/reader/chapter-list-panel";
 import {
@@ -587,14 +594,19 @@ function ReaderSettingsModal({
   onClose,
   onReset,
   onUpdate,
+  onGenerateAiSummary,
+  aiSummaryLoading,
 }: {
   visible: boolean;
   settings: ReaderSettings;
   onClose: () => void;
   onReset: () => void;
   onUpdate: (settings: Partial<ReaderSettings>) => void;
+  onGenerateAiSummary?: () => void;
+  aiSummaryLoading?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const isPremiumUser = useAuthStore((state) => isPremiumAuthSession(state.session));
   const { width, height } = useWindowDimensions();
   const slideProgress = useRef(new Animated.Value(1)).current;
   const isLandscape = width > height;
@@ -747,7 +759,7 @@ function ReaderSettingsModal({
                 >
                   {readerThemeOptions.map((option) => {
                     const selected = settings.theme === option.value;
-                    const canUseTheme = canUseReaderTheme(option.value, false);
+                    const canUseTheme = canUseReaderTheme(option.value, isPremiumUser);
 
                     return (
                       <Pressable
@@ -860,6 +872,32 @@ function ReaderSettingsModal({
                 value={settings.musicianHighContrast}
                 onChange={(value) => onUpdate({ musicianHighContrast: value })}
               />
+              {onGenerateAiSummary ? (
+                <View style={{ gap: spacing[2] }}>
+                  <AppText color="secondary" variant="footnote" weight="semibold">
+                    AI
+                  </AppText>
+                  <Button
+                    title={
+                      aiSummaryLoading
+                        ? "Generating Summary..."
+                        : isPremiumUser
+                          ? "Summarize Chapter"
+                          : "AI Summary requires Premium"
+                    }
+                    icon={Sparkles}
+                    variant="ghost"
+                    disabled={aiSummaryLoading || !isPremiumUser}
+                    onPress={onGenerateAiSummary}
+                    style={{
+                      minHeight: 42,
+                      alignSelf: "stretch",
+                      borderColor: colors.border.subtle,
+                      backgroundColor: colors.background.panel,
+                    }}
+                  />
+                </View>
+              ) : null}
             </ScrollView>
             <Button
               title="Restore to Defaults"
@@ -921,6 +959,9 @@ export function ScrollModeReaderScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [chapterListVisible, setChapterListVisible] = useState(false);
   const [noteEditorVisible, setNoteEditorVisible] = useState(false);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
+  const [activeAiSummary, setActiveAiSummary] = useState<AiSummary | null>(null);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [bookHighlights, setBookHighlights] = useState(() =>
     bookId ? getBookHighlights(bookId) : []
@@ -1505,6 +1546,40 @@ export function ScrollModeReaderScreen() {
     setSettingsVisible(true);
   }, [hideControls]);
 
+  const summarizeCurrentChapter = useCallback(async () => {
+    if (!activeBookId || !chapter || aiSummaryLoading) {
+      return;
+    }
+
+    setAiSummaryLoading(true);
+    setAiSummaryError(null);
+
+    try {
+      const sourceText = truncateSummarySource(htmlToSummaryText(chapter.html));
+
+      if (!sourceText) {
+        throw new Error("This chapter does not contain enough text to summarize.");
+      }
+
+      const result = await generateAiSummary({
+        bookId: activeBookId,
+        scope: "CHAPTER",
+        chapterIndex,
+        language: "AUTO",
+        sourceTitle: chapter.chapter.title,
+        sourceText,
+      });
+
+      setActiveAiSummary(result.summary);
+    } catch (error) {
+      setAiSummaryError(
+        error instanceof Error ? error.message : "Could not generate summary.",
+      );
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  }, [activeBookId, aiSummaryLoading, chapter, chapterIndex]);
+
   const body = useMemo(() => {
     if (!activeBookId) {
       return (
@@ -1699,6 +1774,19 @@ export function ScrollModeReaderScreen() {
         </View>
       ) : null}
 
+      {aiSummaryError && controlsVisible ? (
+        <View
+          style={{
+            position: "absolute",
+            top: insets.top + spacing[18] + spacing[4],
+            alignSelf: "center",
+            maxWidth: 320,
+          }}
+        >
+          <InlineStatus tone="warning" message={aiSummaryError} />
+        </View>
+      ) : null}
+
       {controlsVisible && canGoPrevious && atTop ? (
         <Pressable
           accessibilityRole="button"
@@ -1782,6 +1870,13 @@ export function ScrollModeReaderScreen() {
           })
         }
         onUpdate={setReaderSettings}
+        onGenerateAiSummary={summarizeCurrentChapter}
+        aiSummaryLoading={aiSummaryLoading}
+      />
+      <AiSummaryResultModal
+        visible={Boolean(activeAiSummary)}
+        summary={activeAiSummary}
+        onClose={() => setActiveAiSummary(null)}
       />
     </View>
   );

@@ -52,7 +52,7 @@ export const SearchField = memo(function SearchField({
           flex: 1,
           color: themeColors.text.primary,
           fontSize: compact ? typography.size.body : typography.size.bodyLarge,
-          lineHeight: compact ? typography.lineHeight.body : typography.lineHeight.bodyLarge,
+          lineHeight: compact ? typography.lineHeight.body + 10: typography.lineHeight.bodyLarge + 10,
           fontFamily: getAppFontFamily(typography.weight.medium),
           fontWeight: typography.weight.medium,
           paddingVertical: 0,

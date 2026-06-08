@@ -37,6 +37,7 @@ import {
 } from "@/design/fonts";
 import { colors, radii, spacing } from "@/design/tokens";
 import { useBooksStore } from "@/features/books/books-store";
+import { isPremiumAuthSession, useAuthStore } from "@/features/auth/auth-store";
 import type {
   ReaderSettings,
   ReaderSettingsInput,
@@ -826,6 +827,7 @@ function MusicianSettingsModal({
   onUpdate: (settings: Partial<ReaderSettings>) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const isPremiumUser = useAuthStore((state) => isPremiumAuthSession(state.session));
   const { width, height } = useWindowDimensions();
   const slideProgress = useRef(new Animated.Value(1)).current;
   const isLandscape = width > height;
@@ -985,7 +987,7 @@ function MusicianSettingsModal({
                 >
                   {readerThemeOptions.map((option) => {
                     const selected = settings.theme === option.value;
-                    const canUseTheme = canUseReaderTheme(option.value, false);
+                    const canUseTheme = canUseReaderTheme(option.value, isPremiumUser);
 
                     return (
                       <Pressable

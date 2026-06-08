@@ -44,9 +44,13 @@ export async function ensureLumiraStorage() {
 
 export async function copyBookFile(sourceUri: string, bookId: string) {
   await ensureLumiraStorage();
-  const destination = `${getBooksDirectory()}${bookId}.epub`;
+  const destination = getStoredBookFileUri(bookId);
   await FileSystem.copyAsync({ from: sourceUri, to: destination });
   return destination;
+}
+
+export function getStoredBookFileUri(bookId: string) {
+  return `${getBooksDirectory()}${bookId}.epub`;
 }
 
 export async function writeCoverFile({

@@ -68,6 +68,8 @@ export type ReadingSession = {
 export type Folder = {
   id: string;
   name: string;
+  icon: string;
+  accentColor: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -167,6 +169,23 @@ export type NotificationSettingsInput = Partial<
     | "permissionStatus"
     | "readingReminderNotificationId"
     | "insightDigestNotificationId"
+  >
+>;
+
+export type CloudSyncSettings = {
+  id: string;
+  cloudBackupEnabled: boolean;
+  autoSyncWifiOnly: boolean;
+  allowMobileDataSync: boolean;
+  updatedAt: string;
+};
+
+export type CloudSyncSettingsInput = Partial<
+  Pick<
+    CloudSyncSettings,
+    | "cloudBackupEnabled"
+    | "autoSyncWifiOnly"
+    | "allowMobileDataSync"
   >
 >;
 

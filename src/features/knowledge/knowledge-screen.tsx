@@ -181,7 +181,11 @@ export function KnowledgeScreen() {
 
   const header = (
     <View style={{ gap: spacing[5], marginBottom: responsive.rowGap }}>
-      <AppText color="primary" variant="title1" weight="bold">
+      <AppText
+        color="primary"
+        variant={responsive.isPhone ? "title2" : "title1"}
+        weight="bold"
+      >
         Knowledge
       </AppText>
       <SearchField

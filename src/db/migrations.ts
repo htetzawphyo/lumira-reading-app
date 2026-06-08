@@ -106,9 +106,19 @@ export function initializeDatabase() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS cloud_sync_settings (
+      id TEXT PRIMARY KEY NOT NULL,
+      cloud_backup_enabled INTEGER NOT NULL DEFAULT 0,
+      auto_sync_wifi_only INTEGER NOT NULL DEFAULT 1,
+      allow_mobile_data_sync INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS folders (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
+      icon TEXT NOT NULL DEFAULT 'folder',
+      accent_color TEXT NOT NULL DEFAULT '#8B5CF6',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -160,11 +170,15 @@ export function initializeDatabase() {
   }
 
   if (!highlightColumnNames.has("start_offset")) {
-    getSqlite().execSync("ALTER TABLE highlights ADD COLUMN start_offset INTEGER;");
+    getSqlite().execSync(
+      "ALTER TABLE highlights ADD COLUMN start_offset INTEGER;"
+    );
   }
 
   if (!highlightColumnNames.has("end_offset")) {
-    getSqlite().execSync("ALTER TABLE highlights ADD COLUMN end_offset INTEGER;");
+    getSqlite().execSync(
+      "ALTER TABLE highlights ADD COLUMN end_offset INTEGER;"
+    );
   }
 
   const noteColumns = getSqlite().getAllSync<{ name: string }>(
@@ -230,6 +244,48 @@ export function initializeDatabase() {
   if (!readerSettingsColumnNames.has("reader_font_family")) {
     getSqlite().execSync(
       "ALTER TABLE reader_settings ADD COLUMN reader_font_family TEXT NOT NULL DEFAULT 'noto-serif-myanmar';"
+    );
+  }
+
+  const cloudSyncSettingsColumns = getSqlite().getAllSync<{ name: string }>(
+    "PRAGMA table_info(cloud_sync_settings)"
+  );
+  const cloudSyncSettingsColumnNames = new Set(
+    cloudSyncSettingsColumns.map((column) => column.name)
+  );
+
+  if (!cloudSyncSettingsColumnNames.has("cloud_backup_enabled")) {
+    getSqlite().execSync(
+      "ALTER TABLE cloud_sync_settings ADD COLUMN cloud_backup_enabled INTEGER NOT NULL DEFAULT 0;"
+    );
+  }
+
+  if (!cloudSyncSettingsColumnNames.has("auto_sync_wifi_only")) {
+    getSqlite().execSync(
+      "ALTER TABLE cloud_sync_settings ADD COLUMN auto_sync_wifi_only INTEGER NOT NULL DEFAULT 1;"
+    );
+  }
+
+  if (!cloudSyncSettingsColumnNames.has("allow_mobile_data_sync")) {
+    getSqlite().execSync(
+      "ALTER TABLE cloud_sync_settings ADD COLUMN allow_mobile_data_sync INTEGER NOT NULL DEFAULT 0;"
+    );
+  }
+
+  const folderColumns = getSqlite().getAllSync<{ name: string }>(
+    "PRAGMA table_info(folders)"
+  );
+  const folderColumnNames = new Set(folderColumns.map((column) => column.name));
+
+  if (!folderColumnNames.has("icon")) {
+    getSqlite().execSync(
+      "ALTER TABLE folders ADD COLUMN icon TEXT NOT NULL DEFAULT 'folder';"
+    );
+  }
+
+  if (!folderColumnNames.has("accent_color")) {
+    getSqlite().execSync(
+      "ALTER TABLE folders ADD COLUMN accent_color TEXT NOT NULL DEFAULT '#8B5CF6';"
     );
   }
 
