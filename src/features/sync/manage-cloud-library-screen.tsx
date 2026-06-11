@@ -7,7 +7,7 @@ import {
   Trash2,
 } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
 import { BookCover } from "@/components/books/book-cover";
 import { AppText } from "@/components/ui/app-text";
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { Surface } from "@/components/ui/surface";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
@@ -71,7 +72,7 @@ function CloudBookRow({
 
     try {
       const result = await restoreCloudBook(item.id);
-      Alert.alert(result.ok ? "Book restored" : "Restore unavailable", result.message);
+      showThemedAlert(result.ok ? "Book restored" : "Restore unavailable", result.message);
 
       if (result.ok) {
         onChanged();
@@ -82,7 +83,7 @@ function CloudBookRow({
   }
 
   function confirmDelete() {
-    Alert.alert(
+    showThemedAlert(
       "Remove cloud backup?",
       "This removes the cloud backup only. Your local book remains on this device.",
       [
@@ -98,7 +99,7 @@ function CloudBookRow({
             setBusyAction("remove");
             const result = await deleteCloudBook(item.id);
             setBusyAction(null);
-            Alert.alert(
+            showThemedAlert(
               result.ok ? "Backup removed" : "Cloud unavailable",
               result.message
             );

@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { BookOpen, Sparkles } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -19,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
@@ -253,7 +253,7 @@ export function BookKnowledgeScreen() {
       setNoteEditorVisible(false);
       setEditingNote(null);
     } catch (error) {
-      Alert.alert(
+      showThemedAlert(
         "Could not save note",
         error instanceof Error ? error.message : "Please try again.",
       );
@@ -281,7 +281,7 @@ export function BookKnowledgeScreen() {
   }
 
   function deleteKnowledgeItem(item: KnowledgeItem) {
-    Alert.alert(
+    showThemedAlert(
       item.type === "highlight" ? "Delete highlight?" : "Delete note?",
       "This removes it from your local library.",
       [

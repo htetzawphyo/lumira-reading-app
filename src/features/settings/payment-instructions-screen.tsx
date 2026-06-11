@@ -10,12 +10,13 @@ import {
   WalletCards,
 } from "lucide-react-native";
 import { useMemo, useState } from "react";
-import { Alert, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Surface } from "@/components/ui/surface";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
@@ -45,7 +46,7 @@ export function PaymentInstructionsScreen() {
 
   const copyAccountNumber = async () => {
     await Clipboard.setStringAsync(paymentAccountNumber);
-    Alert.alert("Copied", "Account number copied.");
+    showThemedAlert("Copied", "Account number copied.");
   };
 
   const choosePaymentProof = async () => {
@@ -67,7 +68,7 @@ export function PaymentInstructionsScreen() {
       return;
     }
 
-    Alert.alert(
+    showThemedAlert(
       "Payment proof selected",
       "Your screenshot is ready. The backend payment verification upload endpoint can be connected next.",
     );

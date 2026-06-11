@@ -55,6 +55,7 @@ type FolderInput = {
   icon?: string;
   accentColor?: string;
 };
+type LocalBookBackupStatus = Book["backupStatus"];
 const readerSettingsId = "default";
 const notificationSettingsId = "default";
 const cloudSyncSettingsId = "default";
@@ -109,12 +110,61 @@ function normalizePermissionStatus(
   return "undetermined";
 }
 
+function normalizeBookBackupStatus(
+  value: string | null | undefined
+): LocalBookBackupStatus {
+  if (
+    value === "local-only" ||
+    value === "pending" ||
+    value === "backed-up" ||
+    value === "failed"
+  ) {
+    return value;
+  }
+
+  return "local-only";
+}
+
+function hydrateBook(row: typeof books.$inferSelect): Book {
+  return {
+    ...row,
+    backupStatus: normalizeBookBackupStatus(row.backupStatus),
+  };
+}
+
+function markBookSyncPending(bookId: string, timestamp = nowIso()) {
+  if (!isSQLiteAvailable()) {
+    return;
+  }
+
+  const book = getBookById(bookId);
+
+  if (!book) {
+    return;
+  }
+
+  getDb()
+    .update(books)
+    .set({
+      backupStatus: book.backupStatus === "local-only" ? "local-only" : "pending",
+      syncDirtyAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .where(eq(books.id, bookId))
+    .run();
+}
+
 export function listBooks(): Book[] {
   if (!isSQLiteAvailable()) {
     return [];
   }
 
-  return getDb().select().from(books).orderBy(desc(books.createdAt)).all();
+  return getDb()
+    .select()
+    .from(books)
+    .orderBy(desc(books.createdAt))
+    .all()
+    .map(hydrateBook);
 }
 
 export function listContinueReadingBooks(): Book[] {
@@ -127,7 +177,8 @@ export function listContinueReadingBooks(): Book[] {
     .from(books)
     .where(isNotNull(books.lastOpenedAt))
     .orderBy(desc(books.lastOpenedAt))
-    .all();
+    .all()
+    .map(hydrateBook);
 }
 
 function normalizeFolderName(name: string) {
@@ -347,9 +398,9 @@ export function listBooksForFolder(folderId: string): Book[] {
     .innerJoin(folderBooks, eq(folderBooks.bookId, books.id))
     .where(eq(folderBooks.folderId, folderId))
     .orderBy(desc(folderBooks.createdAt))
-    .all() as Array<{ books: Book }>;
+    .all() as Array<{ books: typeof books.$inferSelect }>;
 
-  return rows.map((row) => row.books).filter(Boolean);
+  return rows.map((row) => hydrateBook(row.books)).filter(Boolean);
 }
 
 export function listBooksNotInFolder(folderId: string): Book[] {
@@ -415,7 +466,8 @@ export function getBookById(id: string): Book | undefined {
     return undefined;
   }
 
-  return getDb().select().from(books).where(eq(books.id, id)).get();
+  const book = getDb().select().from(books).where(eq(books.id, id)).get();
+  return book ? hydrateBook(book) : undefined;
 }
 
 export function getBookByOriginalFileName(fileName: string): Book | undefined {
@@ -423,17 +475,48 @@ export function getBookByOriginalFileName(fileName: string): Book | undefined {
     return undefined;
   }
 
-  return getDb()
+  const book = getDb()
     .select()
     .from(books)
     .where(eq(books.originalFileName, fileName))
     .limit(1)
     .get();
+
+  return book ? hydrateBook(book) : undefined;
 }
 
 export function insertBook(book: NewBook): Book {
   getDb().insert(books).values(book).run();
   return getBookById(book.id) as Book;
+}
+
+export function updateBookCloudBackupState({
+  bookId,
+  backupStatus,
+  lastSyncedAt,
+  syncDirtyAt,
+}: {
+  bookId: string;
+  backupStatus: LocalBookBackupStatus;
+  lastSyncedAt?: string | null;
+  syncDirtyAt?: string | null;
+}): Book | undefined {
+  if (!isSQLiteAvailable()) {
+    return undefined;
+  }
+
+  getDb()
+    .update(books)
+    .set({
+      backupStatus,
+      lastSyncedAt,
+      syncDirtyAt,
+      updatedAt: nowIso(),
+    })
+    .where(eq(books.id, bookId))
+    .run();
+
+  return getBookById(bookId);
 }
 
 export function updateBookCoverUri(
@@ -444,11 +527,15 @@ export function updateBookCoverUri(
     return undefined;
   }
 
+  const timestamp = nowIso();
+
   getDb()
     .update(books)
-    .set({ coverUri, updatedAt: nowIso() })
+    .set({ coverUri, updatedAt: timestamp })
     .where(eq(books.id, bookId))
     .run();
+
+  markBookSyncPending(bookId, timestamp);
 
   return getBookById(bookId);
 }
@@ -547,6 +634,9 @@ export function markBookOpened(
       lastOpenedAt: openedAt,
       updatedAt: openedAt,
       progress: existing.progress,
+      backupStatus:
+        existing.backupStatus === "local-only" ? "local-only" : "pending",
+      syncDirtyAt: openedAt,
     })
     .where(eq(books.id, bookId))
     .run();
@@ -604,6 +694,7 @@ export function updateBookReadingState({
     typeof autoScrollSpeed === "number"
       ? Math.min(Math.max(autoScrollSpeed, 8), 96)
       : undefined;
+  const existing = getBookById(bookId);
 
   getDb()
     .update(books)
@@ -623,6 +714,9 @@ export function updateBookReadingState({
       progress: safeProgress,
       lastOpenedAt: updatedAt,
       updatedAt,
+      backupStatus:
+        existing?.backupStatus === "local-only" ? "local-only" : "pending",
+      syncDirtyAt: updatedAt,
     })
     .where(eq(books.id, bookId))
     .run();
@@ -1127,6 +1221,8 @@ export function addHighlight({
     })
     .run();
 
+  markBookSyncPending(bookId, timestamp);
+
   return getDb()
     .select()
     .from(highlights)
@@ -1166,6 +1262,8 @@ export function addNote({
     })
     .run();
 
+  markBookSyncPending(bookId, timestamp);
+
   return getDb().select().from(notes).where(eq(notes.id, id)).get() as
     | Note
     | undefined;
@@ -1176,11 +1274,22 @@ export function updateNote(noteId: string, content: string): Note | undefined {
     return undefined;
   }
 
+  const existing = getDb()
+    .select()
+    .from(notes)
+    .where(eq(notes.id, noteId))
+    .get() as Note | undefined;
+  const timestamp = nowIso();
+
   getDb()
     .update(notes)
-    .set({ content, updatedAt: nowIso() })
+    .set({ content, updatedAt: timestamp })
     .where(eq(notes.id, noteId))
     .run();
+
+  if (existing?.bookId) {
+    markBookSyncPending(existing.bookId, timestamp);
+  }
 
   return getDb().select().from(notes).where(eq(notes.id, noteId)).get() as
     | Note
@@ -1192,7 +1301,17 @@ export function deleteNote(noteId: string) {
     return;
   }
 
+  const existing = getDb()
+    .select()
+    .from(notes)
+    .where(eq(notes.id, noteId))
+    .get() as Note | undefined;
+
   getDb().delete(notes).where(eq(notes.id, noteId)).run();
+
+  if (existing?.bookId) {
+    markBookSyncPending(existing.bookId);
+  }
 }
 
 export function deleteHighlight(highlightId: string) {
@@ -1200,7 +1319,17 @@ export function deleteHighlight(highlightId: string) {
     return;
   }
 
+  const existing = getDb()
+    .select()
+    .from(highlights)
+    .where(eq(highlights.id, highlightId))
+    .get() as Highlight | undefined;
+
   getDb().delete(highlights).where(eq(highlights.id, highlightId)).run();
+
+  if (existing?.bookId) {
+    markBookSyncPending(existing.bookId);
+  }
 }
 
 export function listKnowledgeItems(): KnowledgeItem[] {
@@ -1304,5 +1433,6 @@ export function searchBooks(query: string): Book[] {
         sql`lower(coalesce(${books.author}, '')) like ${normalized}`
       )
     )
-    .all();
+    .all()
+    .map(hydrateBook);
 }

@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { BookOpen, Clock3, Plus } from "lucide-react-native";
 import type { ListRenderItem } from "react-native";
-import { Alert, FlatList, Pressable, View } from "react-native";
+import { FlatList, Pressable, View } from "react-native";
 
 import { BookCover } from "@/components/books/book-cover";
 import { AppText } from "@/components/ui/app-text";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineStatus } from "@/components/ui/inline-status";
 import { SearchField } from "@/components/ui/search-field";
+import { useThemedAlert } from "@/components/ui/themed-alert";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { spacing, typography } from "@/design/tokens";
@@ -125,6 +126,7 @@ function EmptyLibrary({
 export function LibraryScreen() {
   const responsive = useResponsive();
   const { colors } = useAppTheme();
+  const { showAlert } = useThemedAlert();
   const router = useRouter();
   const books = useBooksStore((state) => state.books);
   const search = useBooksStore((state) => state.librarySearch);
@@ -163,17 +165,17 @@ export function LibraryScreen() {
         return;
       }
 
-      Alert.alert(
+      showAlert(
         result.duplicate ? "Already imported" : "Book imported",
         result.book.title
       );
     } catch (error) {
-      Alert.alert(
+      showAlert(
         "Import failed",
         error instanceof Error ? error.message : "Please try another EPUB file."
       );
     }
-  }, [importBook]);
+  }, [importBook, showAlert]);
 
   const handleSelectBook = useCallback(
     (bookId: string) => {
@@ -215,7 +217,7 @@ export function LibraryScreen() {
           weight="bold"
           numberOfLines={1}
         >
-          Library
+          Lumira
         </AppText>
         <Button
           title={importState === "loading" ? "Importing" : "Import Book"}

@@ -15,6 +15,7 @@ import {
   restoreHighlightRecord,
   restoreNoteRecord,
   updateBookCoverUri,
+  updateBookCloudBackupState,
   updateCloudSyncSettings,
 } from "@/db/repositories";
 import { API_BASE_URL, apiRequest } from "@/features/api/api-client";
@@ -262,6 +263,13 @@ async function uploadBookFile(book: ReturnType<typeof listBooks>[number]) {
   await apiRequest(`/backup/books/${encodeURIComponent(book.id)}/confirm-upload`, {
     method: "POST",
   });
+
+  updateBookCloudBackupState({
+    bookId: book.id,
+    backupStatus: "backed-up",
+    lastSyncedAt: nowIso(),
+    syncDirtyAt: null,
+  });
 }
 
 async function downloadCloudBookFile(params: {
@@ -310,6 +318,12 @@ async function uploadLocalBookFiles(books: ReturnType<typeof listBooks>) {
       await uploadBookFile(book);
       uploaded += 1;
     } catch (error) {
+      updateBookCloudBackupState({
+        bookId: book.id,
+        backupStatus: "failed",
+        lastSyncedAt: book.lastSyncedAt,
+        syncDirtyAt: nowIso(),
+      });
       failed += 1;
       errors.push(error instanceof Error ? error.message : `Upload failed for ${book.title}.`);
     }
@@ -481,6 +495,9 @@ export async function restoreBackup(): Promise<RestoreSummary> {
         currentChapterIndex: book.currentChapterIndex ?? 0,
         currentLocation: book.currentLocation ?? null,
         lastOpenedAt: book.lastOpenedAt ?? null,
+        backupStatus: "backed-up",
+        lastSyncedAt: book.lastSyncedAt ?? book.updatedAt ?? nowIso(),
+        syncDirtyAt: null,
         createdAt: book.createdAt ?? nowIso(),
         updatedAt: book.updatedAt ?? nowIso(),
       });
@@ -637,6 +654,9 @@ export async function restoreCloudBook(bookId: string): Promise<CloudActionResul
       currentChapterIndex: book.currentChapterIndex ?? 0,
       currentLocation: book.currentLocation ?? null,
       lastOpenedAt: book.lastOpenedAt ?? null,
+      backupStatus: "backed-up",
+      lastSyncedAt: book.lastSyncedAt ?? book.updatedAt ?? nowIso(),
+      syncDirtyAt: null,
       createdAt: book.createdAt ?? nowIso(),
       updatedAt: book.updatedAt ?? nowIso(),
     });

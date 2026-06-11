@@ -31,6 +31,9 @@ export function initializeDatabase() {
       current_chapter_index INTEGER NOT NULL DEFAULT 0,
       current_location TEXT,
       last_opened_at TEXT,
+      backup_status TEXT NOT NULL DEFAULT 'local-only',
+      last_synced_at TEXT,
+      sync_dirty_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -149,11 +152,26 @@ export function initializeDatabase() {
   const hasCurrentChapterIndex = bookColumns.some(
     (column) => column.name === "current_chapter_index"
   );
+  const bookColumnNames = new Set(bookColumns.map((column) => column.name));
 
   if (!hasCurrentChapterIndex) {
     getSqlite().execSync(
       "ALTER TABLE books ADD COLUMN current_chapter_index INTEGER NOT NULL DEFAULT 0;"
     );
+  }
+
+  if (!bookColumnNames.has("backup_status")) {
+    getSqlite().execSync(
+      "ALTER TABLE books ADD COLUMN backup_status TEXT NOT NULL DEFAULT 'local-only';"
+    );
+  }
+
+  if (!bookColumnNames.has("last_synced_at")) {
+    getSqlite().execSync("ALTER TABLE books ADD COLUMN last_synced_at TEXT;");
+  }
+
+  if (!bookColumnNames.has("sync_dirty_at")) {
+    getSqlite().execSync("ALTER TABLE books ADD COLUMN sync_dirty_at TEXT;");
   }
 
   const highlightColumns = getSqlite().getAllSync<{ name: string }>(

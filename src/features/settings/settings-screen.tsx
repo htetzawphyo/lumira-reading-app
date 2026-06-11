@@ -8,10 +8,11 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react-native";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
 import { Button } from "@/components/ui/button";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import { getAppTheme } from "@/design/app-themes";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
@@ -164,7 +165,7 @@ function DevelopmentDebugSection() {
   }
 
   function handleClearData() {
-    Alert.alert("Clear local data?", "This removes imported book records and local files.", [
+    showThemedAlert("Clear local data?", "This removes imported book records and local files.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Clear",

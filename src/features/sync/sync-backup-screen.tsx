@@ -12,13 +12,14 @@ import {
   RotateCcw,
 } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineStatus } from "@/components/ui/inline-status";
 import { Surface } from "@/components/ui/surface";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
@@ -436,6 +437,7 @@ function PremiumDashboard({
   const router = useRouter();
   const responsive = useResponsive();
   const { colors } = useAppTheme();
+  const refreshBooks = useBooksStore((state) => state.refreshBooks);
   const [syncing, setSyncing] = useState(false);
   const stateCopy = syncStateCopy(dashboard.status, dashboard.lastSyncedAt);
   const StateIcon = stateCopy.icon;
@@ -450,11 +452,12 @@ function PremiumDashboard({
 
     try {
       const result = await syncNow();
+      refreshBooks();
       onDashboardChange({ ...dashboard, status: result.status });
-      Alert.alert(result.ok ? "Sync complete" : "Sync unavailable", result.message);
+      showThemedAlert(result.ok ? "Sync complete" : "Sync unavailable", result.message);
     } catch {
       onDashboardChange({ ...dashboard, status: "failed" });
-      Alert.alert("Sync unavailable", "Couldn't connect to cloud backup. Try again later.");
+      showThemedAlert("Sync unavailable", "Couldn't connect to cloud backup. Try again later.");
     } finally {
       setSyncing(false);
     }

@@ -21,6 +21,9 @@ export const books = sqliteTable("books", {
   currentChapterIndex: integer("current_chapter_index").notNull().default(0),
   currentLocation: text("current_location"),
   lastOpenedAt: text("last_opened_at"),
+  backupStatus: text("backup_status").notNull().default("local-only"),
+  lastSyncedAt: text("last_synced_at"),
+  syncDirtyAt: text("sync_dirty_at"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

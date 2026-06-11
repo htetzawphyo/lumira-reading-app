@@ -1177,10 +1177,17 @@ function MusicianSettingsModal({
 export function MusicianModeReaderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ bookId: string }>();
+  const params = useLocalSearchParams<{ bookId: string; chapterIndex?: string }>();
   const bookId = Array.isArray(params.bookId)
     ? params.bookId[0]
     : params.bookId;
+  const jumpChapterParam = Array.isArray(params.chapterIndex)
+    ? params.chapterIndex[0]
+    : params.chapterIndex;
+  const jumpChapterIndex =
+    typeof jumpChapterParam === "string" && jumpChapterParam.trim()
+      ? Number(jumpChapterParam)
+      : null;
   const book = useBooksStore((state) =>
     state.books.find((item) => item.id === bookId)
   );
@@ -1236,8 +1243,20 @@ export function MusicianModeReaderScreen() {
   const activeBookId = book?.id;
   const activeFileUri = book?.fileUri;
   const initialLocation = useMemo(
-    () => parseMusicianLocation(book?.currentLocation),
-    [book?.id]
+    () => {
+      const parsedLocation = parseMusicianLocation(book?.currentLocation);
+
+      if (typeof jumpChapterIndex === "number" && Number.isFinite(jumpChapterIndex)) {
+        return {
+          ...parsedLocation,
+          chapterIndex: Math.max(0, Math.floor(jumpChapterIndex)),
+          scrollProgress: 0,
+        };
+      }
+
+      return parsedLocation;
+    },
+    [book?.id, jumpChapterIndex]
   );
   const surface = themeSurface(
     readerSettings.theme,

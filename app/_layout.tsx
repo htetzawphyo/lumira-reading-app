@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppThemeProvider, useAppTheme } from "@/design/app-theme-provider";
+import { ThemedAlertProvider } from "@/components/ui/themed-alert";
 import { AppBootstrap } from "@/features/books/app-bootstrap";
 
 function ThemedRoot() {
@@ -14,21 +15,23 @@ function ThemedRoot() {
     <GestureHandlerRootView
       style={{ flex: 1, backgroundColor: colors.background.base }}
     >
-      <AppBootstrap>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background.base },
-          }}
-        >
-          <Stack.Screen name="index" options={{ title: "Lumira" }} />
-          <Stack.Screen name="(main)" options={{ title: "Library" }} />
-          <Stack.Screen name="reader/[bookId]" options={{ title: "Reader" }} />
-          <Stack.Screen name="book-reader/[bookId]" options={{ title: "Book Reader" }} />
-          <Stack.Screen name="musician-reader/[bookId]" options={{ title: "Musician Reader" }} />
-        </Stack>
-        <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
-      </AppBootstrap>
+      <ThemedAlertProvider>
+        <AppBootstrap>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background.base },
+            }}
+          >
+            <Stack.Screen name="index" options={{ title: "Lumira" }} />
+            <Stack.Screen name="(main)" options={{ title: "Library" }} />
+            <Stack.Screen name="reader/[bookId]" options={{ title: "Reader" }} />
+            <Stack.Screen name="book-reader/[bookId]" options={{ title: "Book Reader" }} />
+            <Stack.Screen name="musician-reader/[bookId]" options={{ title: "Musician Reader" }} />
+          </Stack>
+          <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
+        </AppBootstrap>
+      </ThemedAlertProvider>
     </GestureHandlerRootView>
   );
 }

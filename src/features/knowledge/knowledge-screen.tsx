@@ -90,7 +90,15 @@ const KnowledgeCard = memo(function KnowledgeCard({
           </AppText>
         </View>
       ) : null}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing[4] }}>
+      <View
+        style={{
+          minHeight: 28,
+          flexDirection: "row",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: spacing[4],
+        }}
+      >
         <View
           style={{
             flexDirection: "row",
@@ -114,7 +122,11 @@ const KnowledgeCard = memo(function KnowledgeCard({
           </AppText>
         </View>
         {item.pageLabel ? (
-          <AppText color="secondary" variant="footnote">
+          <AppText
+            color="secondary"
+            variant="footnote"
+            style={{ lineHeight: 28 }}
+          >
             {item.pageLabel}
           </AppText>
         ) : null}
@@ -125,8 +137,16 @@ const KnowledgeCard = memo(function KnowledgeCard({
             gap: spacing[1],
           }}
         >
-          <CalendarDays color={colors.text.secondary} size={15} />
-          <AppText color="secondary" variant="footnote">
+          <CalendarDays
+            color={colors.text.secondary}
+            size={15}
+            style={{ flexShrink: 0 }}
+          />
+          <AppText
+            color="secondary"
+            variant="footnote"
+            style={{ lineHeight: 28 }}
+          >
             {formatRelativeTime(item.createdAt)}
           </AppText>
         </View>

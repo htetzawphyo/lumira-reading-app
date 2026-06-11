@@ -20,12 +20,13 @@ import {
 } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Alert, Modal, Platform, Pressable, ScrollView, Switch, View } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, Switch, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Surface } from "@/components/ui/surface";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import {
   appThemeGroups,
   canUseAppTheme,
@@ -372,7 +373,7 @@ function ProfileDetail() {
 
   async function handleGoogleSignIn() {
     if (!isConfiguredGoogleClientId(googleClientId)) {
-      Alert.alert(
+      showThemedAlert(
         "Google Client ID missing",
         "Add the Web OAuth client ID to EXPO_PUBLIC_GOOGLE_CLIENT_ID, then restart Expo.",
       );
@@ -380,7 +381,7 @@ function ProfileDetail() {
     }
 
     if (Platform.OS === "web") {
-      Alert.alert(
+      showThemedAlert(
         "Google sign-in unavailable",
         "Web Google sign-in is not configured for this app yet.",
       );
@@ -388,7 +389,7 @@ function ProfileDetail() {
     }
 
     if (Platform.OS === "ios" && !isConfiguredGoogleClientId(googleIosClientId)) {
-      Alert.alert(
+      showThemedAlert(
         "iOS Google Client ID missing",
         "Add EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID from Google Cloud Console, then restart Expo.",
       );
@@ -429,14 +430,14 @@ function ProfileDetail() {
       const idToken = signInResponse.data.idToken;
 
       if (!idToken) {
-        Alert.alert("Google sign-in failed", "Google did not return an ID token.");
+        showThemedAlert("Google sign-in failed", "Google did not return an ID token.");
         return;
       }
 
       await loginWithGoogleIdToken(idToken);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not sign in with Google.";
-      Alert.alert(
+      showThemedAlert(
         "Google sign-in unavailable",
         message.includes("RNGoogleSignin") || message.includes("native module")
           ? "The Google Sign-In native module is not in this app build yet. Rebuild the development app, then try again."
@@ -1562,13 +1563,13 @@ function NotificationsDetail() {
       const updatedSettings = await setNotificationSettings({ [key]: value });
 
       if (value && updatedSettings.permissionStatus !== "granted") {
-        Alert.alert(
+        showThemedAlert(
           "Notifications are blocked",
           "Enable Lumira notifications in your device settings to use reminders.",
         );
       }
     } catch (error) {
-      Alert.alert(
+      showThemedAlert(
         "Notifications unavailable",
         error instanceof Error
           ? error.message
@@ -1586,7 +1587,7 @@ function NotificationsDetail() {
       await setNotificationSettings(settings);
       setScheduleEditor(null);
     } catch (error) {
-      Alert.alert(
+      showThemedAlert(
         "Schedule unavailable",
         error instanceof Error
           ? error.message

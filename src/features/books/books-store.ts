@@ -352,26 +352,46 @@ export const useBooksStore = create<BooksStore>((set, get) => ({
   getBookNotes: (bookId: string) => listNotesForBook(bookId),
   createHighlight: (bookId: string, anchor: ReaderAnchor, color = "yellow") => {
     const created = addHighlight({ bookId, anchor, color });
-    set({ knowledgeItems: listKnowledgeItems(), counts: getLocalCounts() });
+    set({
+      books: listBooks(),
+      knowledgeItems: listKnowledgeItems(),
+      counts: getLocalCounts(),
+    });
     return created;
   },
   createNote: (bookId: string, anchor: ReaderAnchor, content: string) => {
     const created = addNote({ bookId, anchor, content });
-    set({ knowledgeItems: listKnowledgeItems(), counts: getLocalCounts() });
+    set({
+      books: listBooks(),
+      knowledgeItems: listKnowledgeItems(),
+      counts: getLocalCounts(),
+    });
     return created;
   },
   editNote: (noteId: string, content: string) => {
     const updated = updateNote(noteId, content);
-    set({ knowledgeItems: listKnowledgeItems(), counts: getLocalCounts() });
+    set({
+      books: listBooks(),
+      knowledgeItems: listKnowledgeItems(),
+      counts: getLocalCounts(),
+    });
     return updated;
   },
   removeNote: (noteId: string) => {
     deleteNote(noteId);
-    set({ knowledgeItems: listKnowledgeItems(), counts: getLocalCounts() });
+    set({
+      books: listBooks(),
+      knowledgeItems: listKnowledgeItems(),
+      counts: getLocalCounts(),
+    });
   },
   removeHighlight: (highlightId: string) => {
     deleteHighlight(highlightId);
-    set({ knowledgeItems: listKnowledgeItems(), counts: getLocalCounts() });
+    set({
+      books: listBooks(),
+      knowledgeItems: listKnowledgeItems(),
+      counts: getLocalCounts(),
+    });
   },
   setLibrarySearch: (query: string) => set({ librarySearch: query }),
   setKnowledgeSearch: (query: string) => set({ knowledgeSearch: query }),

@@ -15,7 +15,6 @@ import {
 } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -30,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
 import { Surface } from "@/components/ui/surface";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
@@ -461,14 +461,14 @@ export function FolderDetailScreen() {
       const message =
         error instanceof Error ? error.message : "Folder could not be renamed.";
       setRenameError(message);
-      Alert.alert("Could not rename folder", message);
+      showThemedAlert("Could not rename folder", message);
     } finally {
       setRenameSaving(false);
     }
   }
 
   function handleDeleteFolder() {
-    Alert.alert(
+    showThemedAlert(
       "Delete folder?",
       "Books inside this folder will remain in your Library.",
       [
@@ -481,7 +481,7 @@ export function FolderDetailScreen() {
               deleteFolder(activeFolder.id);
               router.replace("/folders");
             } catch (error) {
-              Alert.alert(
+              showThemedAlert(
                 "Could not delete folder",
                 error instanceof Error ? error.message : "Please try again."
               );
@@ -515,7 +515,7 @@ export function FolderDetailScreen() {
       setSelectedBookIds([]);
       setAddQuery("");
     } catch (error) {
-      Alert.alert(
+      showThemedAlert(
         "Could not add books",
         error instanceof Error ? error.message : "Please try again."
       );
@@ -528,7 +528,7 @@ export function FolderDetailScreen() {
     try {
       removeBookFromFolder(activeFolder.id, bookId);
     } catch (error) {
-      Alert.alert(
+      showThemedAlert(
         "Could not remove book",
         error instanceof Error ? error.message : "Please try again."
       );
@@ -620,7 +620,7 @@ export function FolderDetailScreen() {
               accessibilityRole="button"
               accessibilityLabel="Folder options"
               onPress={() =>
-                Alert.alert(activeFolder.name, "Folder actions", [
+                showThemedAlert(activeFolder.name, "Folder actions", [
                   {
                     text: "Rename",
                     onPress: () => {
@@ -682,7 +682,7 @@ export function FolderDetailScreen() {
                   book={book}
                   onOpen={(selectedBook) => router.push(`/book/${selectedBook.id}`)}
                   onRemove={(bookId) =>
-                    Alert.alert("Remove from folder?", "The book stays in your Library.", [
+                    showThemedAlert("Remove from folder?", "The book stays in your Library.", [
                       { text: "Cancel", style: "cancel" },
                       {
                         text: "Remove",

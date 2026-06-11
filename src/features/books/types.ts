@@ -16,6 +16,9 @@ export type Book = {
   currentChapterIndex: number;
   currentLocation: string | null;
   lastOpenedAt: string | null;
+  backupStatus: "local-only" | "pending" | "backed-up" | "failed";
+  lastSyncedAt: string | null;
+  syncDirtyAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

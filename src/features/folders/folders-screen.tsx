@@ -12,11 +12,12 @@ import {
 } from "lucide-react-native";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchField } from "@/components/ui/search-field";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { radii, spacing } from "@/design/tokens";
@@ -212,14 +213,14 @@ export function FoldersScreen() {
           ? createError.message
           : "Folder could not be created.";
       setError(message);
-      Alert.alert("Could not create folder", message);
+      showThemedAlert("Could not create folder", message);
     } finally {
       setSaving(false);
     }
   }
 
   function openFolderOptions(folder: FolderWithCount) {
-    Alert.alert(
+    showThemedAlert(
       folder.name,
       `${folder.bookCount} item${folder.bookCount === 1 ? "" : "s"}`,
       [
@@ -271,7 +272,7 @@ export function FoldersScreen() {
           <IconButton
             label="Folder options"
             onPress={() =>
-              Alert.alert("Folders", "Folder tools are coming soon.")
+              showThemedAlert("Folders", "Folder tools are coming soon.")
             }
           >
             <EllipsisVertical

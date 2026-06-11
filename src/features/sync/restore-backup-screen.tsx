@@ -9,13 +9,14 @@ import {
   ShieldCheck,
 } from "lucide-react-native";
 import { useMemo, useState } from "react";
-import { Alert, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 
 import { AppText } from "@/components/ui/app-text";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { Surface } from "@/components/ui/surface";
+import { showThemedAlert } from "@/components/ui/themed-alert";
 import { useAppTheme } from "@/design/app-theme-provider";
 import { useResponsive } from "@/design/responsive";
 import { spacing } from "@/design/tokens";
@@ -100,7 +101,7 @@ export function RestoreBackupScreen() {
       refreshFolders();
       refreshKnowledge();
       setSummary(result);
-      Alert.alert(
+      showThemedAlert(
         "Restore complete",
         "Cloud books and reading data were merged into this device.",
       );
@@ -109,7 +110,7 @@ export function RestoreBackupScreen() {
         error instanceof Error
           ? error.message
           : "Couldn't connect to cloud backup. Your local data is safe.";
-      Alert.alert(
+      showThemedAlert(
         "Restore unavailable",
         message,
       );

@@ -1093,8 +1093,15 @@ function ReaderSettingsModal({
 export function BookModeReaderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ bookId: string }>();
+  const params = useLocalSearchParams<{ bookId: string; chapterIndex?: string }>();
   const bookId = Array.isArray(params.bookId) ? params.bookId[0] : params.bookId;
+  const jumpChapterParam = Array.isArray(params.chapterIndex)
+    ? params.chapterIndex[0]
+    : params.chapterIndex;
+  const jumpChapterIndex =
+    typeof jumpChapterParam === "string" && jumpChapterParam.trim()
+      ? Number(jumpChapterParam)
+      : null;
   const book = useBooksStore((state) => state.books.find((item) => item.id === bookId));
   const selectBook = useBooksStore((state) => state.selectBook);
   const saveReadingState = useBooksStore((state) => state.saveReadingState);
@@ -1145,8 +1152,22 @@ export function BookModeReaderScreen() {
   const activeBookId = book?.id;
   const activeFileUri = book?.fileUri;
   const initialLocation = useMemo(
-    () => parseBookLocation(book?.currentLocation),
-    [book?.id],
+    () => {
+      const parsedLocation = parseBookLocation(book?.currentLocation);
+
+      if (typeof jumpChapterIndex === "number" && Number.isFinite(jumpChapterIndex)) {
+        return {
+          ...parsedLocation,
+          chapterIndex: Math.max(0, Math.floor(jumpChapterIndex)),
+          pageIndex: 0,
+          pageCount: 1,
+          scrollProgress: 0,
+        };
+      }
+
+      return parsedLocation;
+    },
+    [book?.id, jumpChapterIndex],
   );
   const surface = themeSurface(
     readerSettings.theme,
